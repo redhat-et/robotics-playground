@@ -50,3 +50,26 @@ compose-up:
 ## Stop Podman Compose stack
 compose-down:
 	podman compose -f deploy/compose.yaml down
+
+KUSTOMIZE_BUILD := $(if $(shell command -v kustomize 2>/dev/null),kustomize build,kubectl kustomize)
+
+.PHONY: validate lint test dev
+
+## Validate Kustomize manifests
+validate:
+	@echo "=== kustomize build ==="
+	$(KUSTOMIZE_BUILD) deploy/kustomize/ > /dev/null
+	@echo "=== kubeconform ==="
+	$(KUSTOMIZE_BUILD) deploy/kustomize/ | kubeconform -strict -summary -verbose
+
+## Run all linters
+lint: lint-frontend lint-backend
+
+## Run all tests
+test: test-frontend test-backend
+
+## Start all dev servers (run in separate terminals)
+dev:
+	@echo "Run in separate terminals:"
+	@echo "  make dev-frontend"
+	@echo "  make dev-backend"
