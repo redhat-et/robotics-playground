@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir --prefix=/install .
 
 FROM registry.access.redhat.com/hi/python:3.14
 
+COPY --from=builder /usr/lib64/libstdc++.so.6 /usr/lib64/libstdc++.so.6
 COPY --from=builder /install /usr/local
 COPY src/ /app/src/
 
