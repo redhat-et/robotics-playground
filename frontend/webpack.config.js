@@ -1,4 +1,5 @@
 const { ModuleFederationPlugin } = require('@module-federation/enhanced/webpack');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
 const path = require('path');
 const deps = require('./package.json').dependencies;
 
@@ -40,5 +41,14 @@ module.exports = {
         '@patternfly/react-core': { singleton: true, requiredVersion: deps['@patternfly/react-core'] },
       },
     }),
+    new HtmlWebpackPlugin({ template: './src/index.html' }),
   ],
+  devServer: {
+    port: 9200,
+    historyApiFallback: true,
+    proxy: [
+      { context: ['/api'], target: 'http://localhost:8000' },
+      { context: ['/ws'], target: 'http://localhost:8000', ws: true },
+    ],
+  },
 };
