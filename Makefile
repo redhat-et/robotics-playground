@@ -16,15 +16,15 @@ lint-frontend:
 
 ## Start backend dev server
 dev-backend:
-	cd backend && uvicorn robotics_playground.main:app --reload --host 0.0.0.0 --port 8000
+	cd backend && uv run uvicorn robotics_playground.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Run backend tests
 test-backend:
-	cd backend && pytest -v
+	cd backend && uv run pytest -v
 
 ## Lint backend code
 lint-backend:
-	cd backend && ruff check src/ tests/ && ruff format --check src/ tests/
+	cd backend && uv run ruff check src/ tests/ && uv run ruff format --check src/ tests/
 
 IMAGE_UI ?= robotics-playground-ui
 IMAGE_BACKEND ?= robotics-playground
