@@ -22,6 +22,7 @@ export interface UseSessionReturn {
 }
 
 const WS_RECONNECT_DELAY = 2000;
+let messageCounter = 0;
 
 export function useSession(sessionId: string): UseSessionReturn {
   const wsRef = useRef<WebSocket | null>(null);
@@ -61,7 +62,7 @@ export function useSession(sessionId: string): UseSessionReturn {
             setMessages((prev) => [
               ...prev,
               {
-                id: `ack-${Date.now()}`,
+                id: `ack-${++messageCounter}`,
                 role: 'system',
                 text: `${msg.status}: ${msg.text ?? ''}`.trim(),
                 timestamp: Date.now(),
@@ -101,7 +102,7 @@ export function useSession(sessionId: string): UseSessionReturn {
       setMessages((prev) => [
         ...prev,
         {
-          id: `user-${Date.now()}`,
+          id: `user-${++messageCounter}`,
           role: 'user',
           text,
           timestamp: Date.now(),

@@ -60,7 +60,7 @@ async def websocket_session(websocket: WebSocket, session_id: str):
                     }
                 )
                 await asyncio.sleep(1)
-        except (WebSocketDisconnect, Exception):
+        except (WebSocketDisconnect, ConnectionError):
             pass
 
     send_task = asyncio.create_task(send_status())
@@ -91,3 +91,4 @@ async def websocket_session(websocket: WebSocket, session_id: str):
         send_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await send_task
+        await session.stop()

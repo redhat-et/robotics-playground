@@ -91,9 +91,17 @@ class Session:
     async def _run_loop(self):
         try:
             async for obs in observation_stream():
-                await self._paused.wait()
+                paused_future = asyncio.ensure_future(self._paused.wait())
+                step_future = asyncio.ensure_future(self._step_once.wait())
+                _, pending = await asyncio.wait(
+                    [paused_future, step_future],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for f in pending:
+                    f.cancel()
 
-                if self._step_once.is_set():
+                stepping = self._step_once.is_set()
+                if stepping:
                     self._step_once.clear()
 
                 self._step = obs["step"]
@@ -104,5 +112,8 @@ class Session:
 
                 action = await predict_action(obs)
                 self._logger.log_action(action, obs["step"])
+
+                if stepping:
+                    self._paused.clear()
         except asyncio.CancelledError:
             raise
