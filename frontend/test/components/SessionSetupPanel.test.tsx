@@ -8,8 +8,8 @@ describe('SessionSetupPanel', () => {
     expect(screen.getByText('DreamZero v1')).toBeDefined();
   });
 
-  it('renders the Start Session button', () => {
+  it('renders the Connect button', () => {
     render(<SessionSetupPanel />);
-    expect(screen.getByText('Start Session')).toBeDefined();
+    expect(screen.getByText('Connect')).toBeDefined();
   });
 });

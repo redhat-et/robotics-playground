@@ -13,7 +13,7 @@ const ChatPanel: React.FC = () => (
     <div className="chat-panel__messages" />
     <Flex className="chat-panel__input">
       <FlexItem grow={{ default: 'grow' }}>
-        <TextInput aria-label="Chat message" placeholder="Type a message…" />
+        <TextInput aria-label="Chat message" placeholder="Tell the robot what to do..." />
       </FlexItem>
       <FlexItem>
         <Button variant="primary">Send</Button>

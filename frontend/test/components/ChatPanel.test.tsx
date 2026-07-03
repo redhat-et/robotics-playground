@@ -3,9 +3,9 @@ import { render, screen } from '@testing-library/react';
 import ChatPanel from '../../src/components/ChatPanel';
 
 describe('ChatPanel', () => {
-  it('renders the text input', () => {
+  it('renders the text input with placeholder', () => {
     render(<ChatPanel />);
-    expect(screen.getByLabelText('Chat message')).toBeDefined();
+    expect(screen.getByPlaceholderText('Tell the robot what to do...')).toBeDefined();
   });
 
   it('renders the Send button', () => {

@@ -3,9 +3,9 @@ import { render, screen } from '@testing-library/react';
 import App from '../src/App';
 
 describe('App', () => {
-  it('renders the Session Setup panel', () => {
+  it('renders the Session panel', () => {
     render(<App />);
-    expect(screen.getByText('Session Setup')).toBeDefined();
+    expect(screen.getByText('Session')).toBeDefined();
   });
 
   it('renders the Send button in the chat panel', () => {

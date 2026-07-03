@@ -3,7 +3,7 @@
   grid-template-columns: 320px 1fr;
   grid-template-rows: 1fr auto;
   gap: var(--pf-t--global--spacer--md);
-  height: 100%;
+  height: calc(100vh - 48px);
 }
 
 .robotics-playground__sidebar {

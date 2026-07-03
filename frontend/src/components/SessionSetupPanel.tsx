@@ -18,7 +18,7 @@ const SessionSetupPanel: React.FC = () => {
 
   return (
     <div className="session-setup-panel">
-      <Content component="h2">Session Setup</Content>
+      <Content component="h2">Session</Content>
       <Form>
         <FormGroup label="Model" fieldId="model-select">
           <FormSelect
@@ -36,7 +36,7 @@ const SessionSetupPanel: React.FC = () => {
             ))}
           </FormSelect>
         </FormGroup>
-        <Button variant="primary">Start Session</Button>
+        <Button variant="primary">Connect</Button>
       </Form>
     </div>
   );
