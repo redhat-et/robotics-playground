@@ -14,20 +14,20 @@ class RerunLogger:
         if self._initialized:
             return
         rr.init("robotics_playground")
-        rr.serve_grpc(port=self._port)
+        rr.serve_grpc(grpc_port=self._port)
         self._initialized = True
 
     def log_observation(self, image: np.ndarray, joint_positions: list[float], step: int):
-        rr.set_time_sequence("step", step)
+        rr.set_time("step", sequence=step)
         rr.log(f"{self._prefix}/camera/wrist", rr.Image(image))
         for i, pos in enumerate(joint_positions):
-            rr.log(f"{self._prefix}/joints/joint_{i}", rr.Scalar(pos))
+            rr.log(f"{self._prefix}/joints/joint_{i}", rr.Scalars(pos))
 
     def log_action(self, action: np.ndarray, step: int):
-        rr.set_time_sequence("step", step)
+        rr.set_time("step", sequence=step)
         for i, val in enumerate(action):
-            rr.log(f"{self._prefix}/actions/dim_{i}", rr.Scalar(float(val)))
+            rr.log(f"{self._prefix}/actions/dim_{i}", rr.Scalars(float(val)))
 
     def log_instruction(self, text: str, step: int):
-        rr.set_time_sequence("step", step)
+        rr.set_time("step", sequence=step)
         rr.log("session/instructions", rr.TextLog(text))
