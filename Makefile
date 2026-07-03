@@ -51,12 +51,16 @@ compose-up:
 compose-down:
 	podman compose -f deploy/compose.yaml down
 
-KUSTOMIZE_BUILD := $(if $(shell command -v kustomize 2>/dev/null),kustomize build,kubectl kustomize)
+KUSTOMIZE_BUILD := $(if $(shell command -v kustomize 2>/dev/null),kustomize build,$(if $(shell command -v oc 2>/dev/null),oc kustomize,kubectl kustomize))
 
 .PHONY: validate lint test dev
 
 ## Validate Kustomize manifests
 validate:
+	@command -v kustomize >/dev/null 2>&1 || command -v oc >/dev/null 2>&1 || command -v kubectl >/dev/null 2>&1 || \
+		{ echo "ERROR: kustomize, oc, or kubectl required but not found"; exit 1; }
+	@command -v kubeconform >/dev/null 2>&1 || \
+		{ echo "ERROR: kubeconform required but not found (install: go install github.com/yannh/kubeconform/cmd/kubeconform@latest)"; exit 1; }
 	@echo "=== kustomize build ==="
 	$(KUSTOMIZE_BUILD) deploy/kustomize/ > /dev/null
 	@echo "=== kubeconform ==="
