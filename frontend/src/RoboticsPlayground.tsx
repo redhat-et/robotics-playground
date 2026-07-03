@@ -7,7 +7,7 @@ import VisualizationPanel from './components/VisualizationPanel';
 import './RoboticsPlayground.css';
 
 const RoboticsPlayground: React.FC = () => (
-  <PageSection padding={{ default: 'noPadding' }}>
+  <PageSection padding={{ default: 'noPadding' }} isFilled>
     <div className="robotics-playground">
       <div className="robotics-playground__sidebar">
         <ChatPanel />
