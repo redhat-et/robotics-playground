@@ -15,6 +15,9 @@ class Session:
         self._instruction: str = ""
         self._state: str = "idle"
         self._step: int = 0
+        self._paused = asyncio.Event()
+        self._paused.set()
+        self._step_once = asyncio.Event()
 
     @property
     def state(self) -> str:
@@ -35,21 +38,64 @@ class Session:
         if self._task is not None:
             return
         self._state = "running"
+        self._paused.set()
         self._task = asyncio.create_task(self._run_loop())
 
     async def stop(self):
         if self._task is None:
             return
         self._task.cancel()
+        self._paused.set()
         with contextlib.suppress(asyncio.CancelledError):
             await self._task
         self._task = None
         self._state = "idle"
         self._step = 0
 
+    def pause(self):
+        if self._state == "running":
+            self._paused.clear()
+            self._state = "paused"
+
+    def resume(self):
+        if self._state == "paused":
+            self._paused.set()
+            self._state = "running"
+
+    def step_once(self):
+        if self._state == "paused":
+            self._step_once.set()
+
+    async def reset(self):
+        await self.stop()
+        self._instruction = ""
+
+    async def handle_sim_control(self, action: str):
+        if action == "play":
+            if self._state == "idle":
+                await self.start()
+            else:
+                self.resume()
+        elif action == "pause":
+            self.pause()
+        elif action == "stop":
+            await self.stop()
+        elif action == "step":
+            if self._state == "idle":
+                await self.start()
+                self.pause()
+            self.step_once()
+        elif action == "reset":
+            await self.reset()
+
     async def _run_loop(self):
         try:
             async for obs in observation_stream():
+                await self._paused.wait()
+
+                if self._step_once.is_set():
+                    self._step_once.clear()
+
                 self._step = obs["step"]
                 self._logger.log_observation(obs["image"], obs["joint_positions"], obs["step"])
 

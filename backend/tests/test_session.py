@@ -36,3 +36,49 @@ async def test_start_stop_lifecycle():
 
     await session.stop()
     assert session.state == "idle"
+
+
+@pytest.mark.anyio
+async def test_pause_resume():
+    session = Session(rerun_logger=_make_mock_logger())
+    await session.start()
+    assert session.state == "running"
+
+    session.pause()
+    assert session.state == "paused"
+
+    session.resume()
+    assert session.state == "running"
+
+    await session.stop()
+
+
+@pytest.mark.anyio
+async def test_reset_clears_state():
+    session = Session(rerun_logger=_make_mock_logger())
+    await session.start()
+    session.send_instruction("pick up block")
+
+    await session.reset()
+    assert session.state == "idle"
+    assert session.instruction == ""
+    assert session.step == 0
+
+
+@pytest.mark.anyio
+async def test_handle_sim_control_play_from_idle():
+    session = Session(rerun_logger=_make_mock_logger())
+    await session.handle_sim_control("play")
+    assert session.state == "running"
+    await session.stop()
+
+
+@pytest.mark.anyio
+async def test_handle_sim_control_pause_and_resume():
+    session = Session(rerun_logger=_make_mock_logger())
+    await session.handle_sim_control("play")
+    await session.handle_sim_control("pause")
+    assert session.state == "paused"
+    await session.handle_sim_control("play")
+    assert session.state == "running"
+    await session.stop()

@@ -1,0 +1,120 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+
+export interface SessionState {
+  state: string;
+  step: number;
+  instruction: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'system';
+  text: string;
+  timestamp: number;
+}
+
+export interface UseSessionReturn {
+  connected: boolean;
+  sessionState: SessionState;
+  messages: ChatMessage[];
+  sendInstruction: (text: string) => void;
+  sendSimControl: (action: string) => void;
+}
+
+const WS_RECONNECT_DELAY = 2000;
+
+export function useSession(sessionId: string): UseSessionReturn {
+  const wsRef = useRef<WebSocket | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [sessionState, setSessionState] = useState<SessionState>({
+    state: 'idle',
+    step: 0,
+    instruction: '',
+  });
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  useEffect(() => {
+    let reconnectTimer: ReturnType<typeof setTimeout>;
+    let disposed = false;
+
+    function connect() {
+      if (disposed) return;
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/sessions/${sessionId}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'status') {
+            setSessionState({
+              state: msg.state ?? 'idle',
+              step: msg.step ?? 0,
+              instruction: msg.instruction ?? '',
+            });
+          } else if (msg.type === 'instruction_ack') {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `ack-${Date.now()}`,
+                role: 'system',
+                text: `${msg.status}: ${msg.text ?? ''}`.trim(),
+                timestamp: Date.now(),
+              },
+            ]);
+          }
+        } catch {
+          // ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        wsRef.current = null;
+        if (!disposed) {
+          reconnectTimer = setTimeout(connect, WS_RECONNECT_DELAY);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      disposed = true;
+      clearTimeout(reconnectTimer);
+      wsRef.current?.close();
+    };
+  }, [sessionId]);
+
+  const sendInstruction = useCallback((text: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'instruction', text }));
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          text,
+          timestamp: Date.now(),
+        },
+      ]);
+    }
+  }, []);
+
+  const sendSimControl = useCallback((action: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'sim_control', action }));
+    }
+  }, []);
+
+  return { connected, sessionState, messages, sendInstruction, sendSimControl };
+}

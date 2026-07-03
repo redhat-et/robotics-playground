@@ -1,19 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Button,
   Flex,
   FlexItem,
   FormSelect,
   FormSelectOption,
+  Spinner,
 } from '@patternfly/react-core';
 
-const policies = [
-  { value: 'dreamzero-v1', label: 'DreamZero v1' },
-  { value: 'humanoidbench-v1', label: 'HumanoidBench Baseline' },
-];
+interface Model {
+  id: string;
+  name: string;
+  type: string;
+}
 
 const PolicyBar: React.FC = () => {
-  const [selectedPolicy, setSelectedPolicy] = useState(policies[0].value);
+  const [models, setModels] = useState<Model[]>([]);
+  const [selectedPolicy, setSelectedPolicy] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/models?type=robotics')
+      .then((res) => res.json())
+      .then((data) => {
+        const fetched: Model[] = data.models ?? [];
+        setModels(fetched);
+        if (fetched.length > 0) {
+          setSelectedPolicy(fetched[0].id);
+        }
+      })
+      .catch(() => {
+        setModels([]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <Flex
@@ -24,20 +44,29 @@ const PolicyBar: React.FC = () => {
       <Flex alignItems={{ default: 'alignItemsCenter' }}>
         <FlexItem>Policy:</FlexItem>
         <FlexItem>
-          <FormSelect
-            id="policy-select"
-            value={selectedPolicy}
-            onChange={(_event, value) => setSelectedPolicy(value)}
-            aria-label="Select policy"
-          >
-            {policies.map((policy) => (
-              <FormSelectOption
-                key={policy.value}
-                value={policy.value}
-                label={policy.label}
-              />
-            ))}
-          </FormSelect>
+          {loading ? (
+            <Spinner size="md" aria-label="Loading models" />
+          ) : (
+            <FormSelect
+              id="policy-select"
+              value={selectedPolicy}
+              onChange={(_event, value) => setSelectedPolicy(value)}
+              aria-label="Select policy"
+              isDisabled={models.length === 0}
+            >
+              {models.length === 0 ? (
+                <FormSelectOption key="none" value="" label="No models available" isDisabled />
+              ) : (
+                models.map((model) => (
+                  <FormSelectOption
+                    key={model.id}
+                    value={model.id}
+                    label={model.name}
+                  />
+                ))
+              )}
+            </FormSelect>
+          )}
         </FlexItem>
       </Flex>
       <FlexItem>
