@@ -37,17 +37,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
-      - run: cd backend && uv pip install --system -e ".[dev]"
-      - run: cd backend && ruff check src/ tests/
-      - run: cd backend && ruff format --check src/ tests/
+      - run: cd backend && uv sync --extra dev
+      - run: cd backend && uv run ruff check src/ tests/
+      - run: cd backend && uv run ruff format --check src/ tests/
 
   test-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
-      - run: cd backend && uv pip install --system -e ".[dev]"
-      - run: cd backend && pytest -v
+      - run: cd backend && uv sync --extra dev
+      - run: cd backend && uv run pytest -v
 
   lint-yaml:
     runs-on: ubuntu-latest
