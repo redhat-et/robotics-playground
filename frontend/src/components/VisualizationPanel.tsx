@@ -9,7 +9,7 @@ interface VisualizationPanelProps {
   connected: boolean;
 }
 
-const RERUN_VIEWER_URL = 'https://app.rerun.io/version/0.22.1/';
+const RERUN_VIEWER_URL = 'https://app.rerun.io/version/0.33.1/';
 
 function getRerunUrl(): string {
   const grpcHost = window.location.hostname;
