@@ -5,7 +5,7 @@ import RoboticsPlayground from './RoboticsPlayground';
 
 const App: React.FC = () => (
   <BrowserRouter>
-    <Page className="pf-v6-theme-dark">
+    <Page>
       <Routes>
         <Route path="/*" element={<RoboticsPlayground />} />
       </Routes>

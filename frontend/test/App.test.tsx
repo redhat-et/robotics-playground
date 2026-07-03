@@ -3,9 +3,9 @@ import { render, screen } from '@testing-library/react';
 import App from '../src/App';
 
 describe('App', () => {
-  it('renders the Session panel', () => {
+  it('renders the Instructions panel', () => {
     render(<App />);
-    expect(screen.getByText('Session')).toBeDefined();
+    expect(screen.getByText('Instructions')).toBeDefined();
   });
 
   it('renders the Send button in the chat panel', () => {
@@ -18,8 +18,9 @@ describe('App', () => {
     expect(screen.getByText('Rerun Viewer')).toBeDefined();
   });
 
-  it('renders Stop and Reset buttons', () => {
+  it('renders simulation control buttons', () => {
     render(<App />);
+    expect(screen.getByText('Play')).toBeDefined();
     expect(screen.getByText('Stop')).toBeDefined();
     expect(screen.getByText('Reset')).toBeDefined();
   });
@@ -27,5 +28,11 @@ describe('App', () => {
   it('renders the Idle status label', () => {
     render(<App />);
     expect(screen.getByText('Idle')).toBeDefined();
+  });
+
+  it('renders the policy selector and Split button', () => {
+    render(<App />);
+    expect(screen.getByText('DreamZero v1')).toBeDefined();
+    expect(screen.getByText('Split')).toBeDefined();
   });
 });

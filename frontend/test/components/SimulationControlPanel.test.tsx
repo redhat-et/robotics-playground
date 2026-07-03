@@ -1,16 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import ControlBar from '../../src/components/ControlBar';
+import SimulationControlPanel from '../../src/components/SimulationControlPanel';
 
-describe('ControlBar', () => {
-  it('renders Stop and Reset buttons', () => {
-    render(<ControlBar />);
+describe('SimulationControlPanel', () => {
+  it('renders Play, Stop, and Reset buttons', () => {
+    render(<SimulationControlPanel />);
+    expect(screen.getByText('Play')).toBeDefined();
     expect(screen.getByText('Stop')).toBeDefined();
     expect(screen.getByText('Reset')).toBeDefined();
   });
 
   it('renders the Idle status label', () => {
-    render(<ControlBar />);
+    render(<SimulationControlPanel />);
     expect(screen.getByText('Idle')).toBeDefined();
   });
 });

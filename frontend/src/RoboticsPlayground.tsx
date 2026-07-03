@@ -1,23 +1,21 @@
 import React from 'react';
 import { PageSection } from '@patternfly/react-core';
-import SessionSetupPanel from './components/SessionSetupPanel';
 import ChatPanel from './components/ChatPanel';
+import SimulationControlPanel from './components/SimulationControlPanel';
+import PolicyBar from './components/PolicyBar';
 import VisualizationPanel from './components/VisualizationPanel';
-import ControlBar from './components/ControlBar';
 import './RoboticsPlayground.css';
 
 const RoboticsPlayground: React.FC = () => (
-  <PageSection>
+  <PageSection padding={{ default: 'noPadding' }}>
     <div className="robotics-playground">
       <div className="robotics-playground__sidebar">
-        <SessionSetupPanel />
         <ChatPanel />
+        <SimulationControlPanel />
       </div>
       <div className="robotics-playground__main">
+        <PolicyBar />
         <VisualizationPanel />
-      </div>
-      <div className="robotics-playground__footer">
-        <ControlBar />
       </div>
     </div>
   </PageSection>
