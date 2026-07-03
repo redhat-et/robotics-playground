@@ -152,6 +152,23 @@ async def test_handle_sim_control_step_from_idle():
 
 
 @pytest.mark.anyio
+async def test_step_once_advances_then_pauses():
+    mock_logger = _make_mock_logger()
+    session = Session(rerun_logger=mock_logger)
+    await session.start()
+    session.pause()
+    assert session.state == "paused"
+
+    initial_obs_count = mock_logger.log_observation.call_count
+    session.step_once()
+    await asyncio.sleep(0.25)
+
+    assert mock_logger.log_observation.call_count > initial_obs_count
+    assert session.state == "paused"
+    await session.stop()
+
+
+@pytest.mark.anyio
 async def test_handle_sim_control_unknown_action_is_noop():
     session = Session(rerun_logger=_make_mock_logger())
     await session.handle_sim_control("unknown_action")
