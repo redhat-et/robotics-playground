@@ -48,10 +48,7 @@ async def websocket_session(websocket: WebSocket, session_id: str):
     await websocket.accept()
     session: Session = app.state.session
 
-    await session.start()
-
     async def send_status():
-        """Periodically send status updates to the client."""
         try:
             while True:
                 await websocket.send_json(
@@ -76,9 +73,18 @@ async def websocket_session(websocket: WebSocket, session_id: str):
             except json.JSONDecodeError:
                 continue
 
-            if msg.get("type") == "instruction":
+            msg_type = msg.get("type")
+
+            if msg_type == "instruction":
                 text = msg.get("text", "")
                 session.send_instruction(text)
+                await websocket.send_json(
+                    {"type": "instruction_ack", "status": "received", "text": text}
+                )
+
+            elif msg_type == "sim_control":
+                action = msg.get("action", "")
+                await session.handle_sim_control(action)
     except WebSocketDisconnect:
         pass
     finally:
