@@ -8,6 +8,8 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
     "pydantic-settings>=2.7.0",
+    "rerun-sdk>=0.22.0",
+    "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]
@@ -15,6 +17,7 @@ dev = [
     "pytest>=8.3.0",
     "httpx>=0.28.0",
     "ruff>=0.9.0",
+    "anyio>=4.0.0",
 ]
 
 [tool.ruff]
