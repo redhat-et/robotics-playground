@@ -14,7 +14,7 @@ const RERUN_VIEWER_URL = 'https://app.rerun.io/version/0.22.1/';
 function getRerunUrl(): string {
   const grpcHost = window.location.hostname;
   const grpcPort = 9876;
-  return `${RERUN_VIEWER_URL}?url=rerun://${grpcHost}:${grpcPort}`;
+  return `${RERUN_VIEWER_URL}?url=rerun+http://${grpcHost}:${grpcPort}/proxy`;
 }
 
 const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ connected }) => (
