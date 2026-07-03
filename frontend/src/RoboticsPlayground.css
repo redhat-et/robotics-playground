@@ -1,0 +1,60 @@
+.robotics-playground {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: 1fr auto;
+  gap: var(--pf-t--global--spacer--md);
+  height: 100%;
+}
+
+.robotics-playground__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pf-t--global--spacer--md);
+  min-height: 0;
+}
+
+.robotics-playground__main {
+  min-height: 0;
+}
+
+.robotics-playground__footer {
+  grid-column: 1 / -1;
+}
+
+/* SessionSetupPanel */
+.session-setup-panel {
+  padding: var(--pf-t--global--spacer--md);
+  border: 1px solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+}
+
+/* ChatPanel */
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: var(--pf-t--global--spacer--md);
+  border: 1px solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+}
+
+.chat-panel__messages {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+}
+
+.chat-panel__input {
+  padding-top: var(--pf-t--global--spacer--sm);
+}
+
+/* VisualizationPanel */
+.visualization-panel {
+  height: 100%;
+}
+
+/* ControlBar */
+.control-bar {
+  padding: var(--pf-t--global--spacer--sm) 0;
+}

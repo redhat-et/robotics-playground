@@ -1,19 +1,25 @@
 import React from 'react';
-import {
-  EmptyState,
-  EmptyStateBody,
-  PageSection,
-} from '@patternfly/react-core';
-import { RobotIcon } from '@patternfly/react-icons';
+import { PageSection } from '@patternfly/react-core';
+import SessionSetupPanel from './components/SessionSetupPanel';
+import ChatPanel from './components/ChatPanel';
+import VisualizationPanel from './components/VisualizationPanel';
+import ControlBar from './components/ControlBar';
+import './RoboticsPlayground.css';
 
 const RoboticsPlayground: React.FC = () => (
   <PageSection>
-    <EmptyState titleText="Robotics Playground" headingLevel="h1" icon={RobotIcon}>
-      <EmptyStateBody>
-        Experiment with robot policy models in a simulated environment.
-        This feature is under development.
-      </EmptyStateBody>
-    </EmptyState>
+    <div className="robotics-playground">
+      <div className="robotics-playground__sidebar">
+        <SessionSetupPanel />
+        <ChatPanel />
+      </div>
+      <div className="robotics-playground__main">
+        <VisualizationPanel />
+      </div>
+      <div className="robotics-playground__footer">
+        <ControlBar />
+      </div>
+    </div>
   </PageSection>
 );
 
