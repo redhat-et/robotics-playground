@@ -8,10 +8,8 @@ describe('App', () => {
     expect(screen.getByText('Robotics Playground')).toBeDefined();
   });
 
-  it('renders the description text', () => {
+  it('renders the simulation controls', () => {
     render(<App />);
-    expect(
-      screen.getByText(/Experiment with robot policy models/)
-    ).toBeDefined();
+    expect(screen.getByText('Simulation Control')).toBeDefined();
   });
 });
