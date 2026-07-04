@@ -58,7 +58,7 @@
   margin-bottom: var(--pf-t--global--spacer--xs);
   border-radius: var(--pf-t--global--border--radius--small);
   max-width: 85%;
-  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .chat-panel__message--user {
