@@ -614,6 +614,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "numpy" },
     { name = "pydantic-settings" },
+    { name = "pyyaml" },
     { name = "rerun-sdk" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -636,6 +637,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.7.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
     { name = "pytest-anyio", marker = "extra == 'dev'", specifier = ">=0.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "rerun-sdk", specifier = ">=0.22.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.0" },

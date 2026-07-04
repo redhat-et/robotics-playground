@@ -1,12 +1,48 @@
-from pydantic_settings import BaseSettings
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import yaml
+from pydantic import BaseModel
 
 
-class Settings(BaseSettings):
+class ServerConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
     log_level: str = "info"
-    rerun_grpc_port: int = 9876
-    rerun_web_port: int = 9090
 
 
-settings = Settings()
+class RerunConfig(BaseModel):
+    grpc_port: int = 9876
+    web_port: int = 9090
+
+
+class BridgeConfig(BaseModel):
+    type: str = "mock"
+
+
+class ROS2Config(BaseModel):
+    domain_id: int = 0
+    discovery_server: str | None = None
+    cameras: dict[str, str] = {}
+    joint_state_topic: str = "/joint_states"
+    joint_command_topic: str = "/joint_commands"
+    sim_control_service: str = "/sim_control"
+
+
+class PlaygroundConfig(BaseModel):
+    server: ServerConfig = ServerConfig()
+    rerun: RerunConfig = RerunConfig()
+    bridge: BridgeConfig = BridgeConfig()
+    ros2: ROS2Config = ROS2Config()
+
+
+def load_config(path: str | None = None) -> PlaygroundConfig:
+    if path is None:
+        path = os.environ.get("PLAYGROUND_CONFIG")
+    if path and Path(path).is_file():
+        with open(path) as f:
+            data = yaml.safe_load(f) or {}
+        return PlaygroundConfig(**data)
+    return PlaygroundConfig()
