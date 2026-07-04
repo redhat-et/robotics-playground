@@ -43,9 +43,11 @@ build-frontend-image:
 build-backend-image:
 	podman build -t $(IMAGE_BACKEND):$(TAG) -f backend/Containerfile backend/
 
+COMPOSE_PROFILES ?=
+
 ## Start Podman Compose stack
 compose-up:
-	podman compose -f deploy/compose.yaml up -d
+	podman compose -f deploy/compose.yaml $(if $(COMPOSE_PROFILES),--profile $(COMPOSE_PROFILES)) up -d
 
 ## Stop Podman Compose stack
 compose-down:
