@@ -18,12 +18,13 @@ FROM registry.access.redhat.com/ubi9/python-312
 
 USER 0
 
-RUN dnf install -y \
+RUN ARCH=$(uname -m) && \
+    dnf install -y \
     https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
     -o /usr/share/keyrings/ros-archive-keyring.gpg && \
     dnf config-manager --add-repo \
-    https://packages.ros.org/ros2/rhel/9/x86_64/ && \
+    "https://packages.ros.org/ros2/rhel/9/${ARCH}/" && \
     dnf install -y --nogpgcheck \
     ros-jazzy-rclpy \
     ros-jazzy-sensor-msgs \
