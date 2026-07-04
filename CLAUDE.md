@@ -18,6 +18,8 @@ Two containers: React/PatternFly frontend (nginx) + Python/FastAPI backend (orch
 - YAML: 2-space indent
 - Tests first: write tests before implementation
 - Always run `make lint`, `make test`, `make build` before committing
+- Always use `make` targets for building, running, and deploying — never run `podman build`, `podman run`, or `podman compose` directly
+- `deploy/compose.yaml` must not contain `build:` directives — images are built separately via `make build` and referenced by tag only
 
 ## Development
 
@@ -26,4 +28,5 @@ Two containers: React/PatternFly frontend (nginx) + Python/FastAPI backend (orch
 - `make lint` — run all linters (eslint + ruff + yamllint)
 - `make build` — build container images with Podman
 - `make compose-up` / `make compose-down` — Podman Compose stack
+- `make run` / `make stop` — run containers directly (without compose)
 - `make validate` — validate Kustomize manifests with kubeconform

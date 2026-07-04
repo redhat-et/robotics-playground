@@ -30,7 +30,7 @@ IMAGE_UI ?= robotics-playground-ui
 IMAGE_BACKEND ?= robotics-playground
 TAG ?= local
 
-.PHONY: build build-frontend-image build-backend-image compose-up compose-down
+.PHONY: build build-frontend-image build-backend-image compose-up compose-down run stop
 
 ## Build both container images
 build: build-frontend-image build-backend-image
@@ -50,6 +50,24 @@ compose-up:
 ## Stop Podman Compose stack
 compose-down:
 	podman compose -f deploy/compose.yaml down
+
+NETWORK ?= rp-net
+
+## Run containers directly (without compose)
+run: build
+	@podman network exists $(NETWORK) 2>/dev/null || podman network create $(NETWORK)
+	podman run -d --name backend --network $(NETWORK) \
+		-p 8000:8000 -p 9876:9876 -p 9090:9090 \
+		$(IMAGE_BACKEND):$(TAG)
+	podman run -d --name ui --network $(NETWORK) \
+		-p 8080:8080 \
+		$(IMAGE_UI):$(TAG)
+	@echo "UI: http://localhost:8080  Backend: http://localhost:8000"
+
+## Stop and remove containers
+stop:
+	-podman stop ui backend 2>/dev/null
+	-podman rm ui backend 2>/dev/null
 
 KUSTOMIZE_BUILD := $(if $(shell command -v kustomize 2>/dev/null),kustomize build,$(if $(shell command -v oc 2>/dev/null),oc kustomize,kubectl kustomize))
 
