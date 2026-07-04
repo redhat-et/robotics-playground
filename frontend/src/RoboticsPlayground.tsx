@@ -24,6 +24,7 @@ const RoboticsPlayground: React.FC = () => {
           />
           <SimulationControlPanel
             state={sessionState.state}
+            bridgeStatus={sessionState.bridgeStatus}
             onSimControl={sendSimControl}
           />
         </div>

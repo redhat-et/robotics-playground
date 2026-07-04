@@ -89,6 +89,40 @@ describe('useSession', () => {
     expect(result.current.sessionState.instruction).toBe('wave');
   });
 
+  it('parses bridge_status from status messages', async () => {
+    const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    act(() => {
+      MockWebSocket.instances[0].simulateMessage({
+        type: 'status',
+        state: 'idle',
+        step: 0,
+        instruction: '',
+        bridge_status: 'connected',
+      });
+    });
+
+    expect(result.current.sessionState.bridgeStatus).toBe('connected');
+  });
+
+  it('defaults bridgeStatus to mock when not present', async () => {
+    const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    act(() => {
+      MockWebSocket.instances[0].simulateMessage({ type: 'status' });
+    });
+
+    expect(result.current.sessionState.bridgeStatus).toBe('mock');
+  });
+
   it('adds ack messages to chat on instruction_ack', async () => {
     const { result } = renderHook(() => useSession('test-session'));
 
@@ -143,6 +177,38 @@ describe('useSession', () => {
     const sent = JSON.parse(MockWebSocket.instances[0].sent[0]);
     expect(sent.type).toBe('sim_control');
     expect(sent.action).toBe('play');
+  });
+
+  it('sendSimControl includes speed when provided', async () => {
+    const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    act(() => {
+      result.current.sendSimControl('play', 2.5);
+    });
+
+    const sent = JSON.parse(MockWebSocket.instances[0].sent[0]);
+    expect(sent.type).toBe('sim_control');
+    expect(sent.action).toBe('play');
+    expect(sent.speed).toBe(2.5);
+  });
+
+  it('sendSimControl omits speed when not provided', async () => {
+    const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    act(() => {
+      result.current.sendSimControl('stop');
+    });
+
+    const sent = JSON.parse(MockWebSocket.instances[0].sent[0]);
+    expect(sent.speed).toBeUndefined();
   });
 
   it('does not send when WebSocket is not open', () => {

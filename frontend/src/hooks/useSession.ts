@@ -4,6 +4,7 @@ export interface SessionState {
   state: string;
   step: number;
   instruction: string;
+  bridgeStatus: string;
 }
 
 export interface ChatMessage {
@@ -18,7 +19,7 @@ export interface UseSessionReturn {
   sessionState: SessionState;
   messages: ChatMessage[];
   sendInstruction: (text: string) => void;
-  sendSimControl: (action: string) => void;
+  sendSimControl: (action: string, speed?: number) => void;
 }
 
 const WS_RECONNECT_DELAY = 2000;
@@ -31,8 +32,10 @@ export function useSession(sessionId: string): UseSessionReturn {
     state: 'idle',
     step: 0,
     instruction: '',
+    bridgeStatus: 'mock',
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+
 
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout>;
@@ -57,6 +60,7 @@ export function useSession(sessionId: string): UseSessionReturn {
               state: msg.state ?? 'idle',
               step: msg.step ?? 0,
               instruction: msg.instruction ?? '',
+              bridgeStatus: msg.bridge_status ?? 'mock',
             });
           } else if (msg.type === 'instruction_ack') {
             setMessages((prev) => [
@@ -111,9 +115,13 @@ export function useSession(sessionId: string): UseSessionReturn {
     }
   }, []);
 
-  const sendSimControl = useCallback((action: string) => {
+  const sendSimControl = useCallback((action: string, speed?: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'sim_control', action }));
+      const msg: Record<string, unknown> = { type: 'sim_control', action };
+      if (speed !== undefined) {
+        msg.speed = speed;
+      }
+      wsRef.current.send(JSON.stringify(msg));
     }
   }, []);
 
