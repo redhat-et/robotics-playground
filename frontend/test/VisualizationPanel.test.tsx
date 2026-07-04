@@ -15,17 +15,10 @@ describe('VisualizationPanel', () => {
     expect(iframe?.title).toBe('Rerun Viewer');
   });
 
-  it('iframe src contains correct Rerun version', () => {
+  it('iframe src points to local Rerun web viewer', () => {
     render(<VisualizationPanel connected={true} />);
     const iframe = document.querySelector('iframe');
-    expect(iframe?.src).toContain('version/0.33.1');
-  });
-
-  it('iframe src contains gRPC connection URL', () => {
-    render(<VisualizationPanel connected={true} />);
-    const iframe = document.querySelector('iframe');
-    expect(iframe?.src).toContain('rerun+http://');
-    expect(iframe?.src).toContain(':9876/proxy');
+    expect(iframe?.src).toContain(':9090');
   });
 
   it('does not render iframe when disconnected', () => {

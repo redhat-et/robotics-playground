@@ -16,7 +16,7 @@ from robotics_playground.session import Session
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # Startup
-    logger = RerunLogger(port=settings.rerun_grpc_port)
+    logger = RerunLogger(port=settings.rerun_grpc_port, web_port=settings.rerun_web_port)
     logger.start()
     session = Session(rerun_logger=logger)
     app.state.rerun_logger = logger
