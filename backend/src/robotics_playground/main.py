@@ -8,21 +8,23 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 
-from robotics_playground.config import settings
+from robotics_playground.bridges import create_bridge
+from robotics_playground.config import load_config
 from robotics_playground.rerun_logger import RerunLogger
 from robotics_playground.session import Session
+
+config = load_config()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    # Startup
-    logger = RerunLogger(port=settings.rerun_grpc_port, web_port=settings.rerun_web_port)
+    logger = RerunLogger(port=config.rerun.grpc_port, web_port=config.rerun.web_port)
     logger.start()
-    session = Session(rerun_logger=logger)
+    bridge = create_bridge(config)
+    session = Session(bridge=bridge, rerun_logger=logger)
     app.state.rerun_logger = logger
     app.state.session = session
     yield
-    # Shutdown
     await session.stop()
 
 
@@ -59,6 +61,7 @@ async def websocket_session(websocket: WebSocket, session_id: str):
                             "state": session.state,
                             "step": session.step,
                             "instruction": session.instruction,
+                            "bridge_status": session.bridge_status,
                         }
                     )
                 await asyncio.sleep(1)
@@ -87,11 +90,11 @@ async def websocket_session(websocket: WebSocket, session_id: str):
 
             elif msg_type == "sim_control":
                 action = msg.get("action", "")
-                await session.handle_sim_control(action)
+                speed = msg.get("speed")
+                await session.handle_sim_control(action, speed=speed)
     except WebSocketDisconnect:
         pass
     finally:
         send_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await send_task
-        await session.stop()

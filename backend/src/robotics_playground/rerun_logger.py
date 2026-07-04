@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-import numpy as np
+from typing import TYPE_CHECKING
+
 import rerun as rr
+
+if TYPE_CHECKING:
+    from robotics_playground.bridges.protocol import Action, Observation
 
 
 class RerunLogger:
@@ -10,6 +14,8 @@ class RerunLogger:
         self._web_port = web_port
         self._prefix = f"session/policy_{policy_index}"
         self._initialized = False
+        self._step_offset = 0
+        self._last_step = 0
 
     def start(self):
         if self._initialized:
@@ -23,17 +29,29 @@ class RerunLogger:
         )
         self._initialized = True
 
-    def log_observation(self, image: np.ndarray, joint_positions: list[float], step: int):
-        rr.set_time("step", sequence=step)
-        rr.log(f"{self._prefix}/camera/wrist", rr.Image(image))
-        for i, pos in enumerate(joint_positions):
+    def clear(self):
+        if self._initialized:
+            clear_step = self._step_offset + self._last_step + 1
+            rr.set_time("step", sequence=clear_step)
+            rr.log(self._prefix, rr.Clear(recursive=True))
+            rr.log("session/instructions", rr.Clear(recursive=True))
+            self._step_offset = clear_step + 1
+            self._last_step = 0
+
+    def log_observation(self, obs: Observation, step: int):
+        effective_step = self._step_offset + step
+        self._last_step = step
+        rr.set_time("step", sequence=effective_step)
+        for name, image in obs["cameras"].items():
+            rr.log(f"{self._prefix}/camera/{name}", rr.Image(image))
+        for i, pos in enumerate(obs["joint_positions"]):
             rr.log(f"{self._prefix}/joints/joint_{i}", rr.Scalars(pos))
 
-    def log_action(self, action: np.ndarray, step: int):
-        rr.set_time("step", sequence=step)
-        for i, val in enumerate(action):
+    def log_action(self, action: Action, step: int):
+        rr.set_time("step", sequence=self._step_offset + step)
+        for i, val in enumerate(action["joint_positions"]):
             rr.log(f"{self._prefix}/actions/dim_{i}", rr.Scalars(float(val)))
 
     def log_instruction(self, text: str, step: int):
-        rr.set_time("step", sequence=step)
+        rr.set_time("step", sequence=self._step_offset + step)
         rr.log("session/instructions", rr.TextLog(text))

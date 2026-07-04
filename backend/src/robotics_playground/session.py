@@ -2,14 +2,18 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from typing import TYPE_CHECKING
 
 from robotics_playground.mock_policy import predict_action
-from robotics_playground.mock_robot import observation_stream
-from robotics_playground.rerun_logger import RerunLogger
+
+if TYPE_CHECKING:
+    from robotics_playground.bridges.protocol import RobotBridge
+    from robotics_playground.rerun_logger import RerunLogger
 
 
 class Session:
-    def __init__(self, rerun_logger: RerunLogger):
+    def __init__(self, bridge: RobotBridge, rerun_logger: RerunLogger):
+        self._bridge = bridge
         self._logger = rerun_logger
         self._task: asyncio.Task | None = None
         self._instruction: str = ""
@@ -31,6 +35,10 @@ class Session:
     def instruction(self) -> str:
         return self._instruction
 
+    @property
+    def bridge_status(self) -> str:
+        return self._bridge.bridge_status
+
     def send_instruction(self, text: str):
         self._instruction = text
 
@@ -39,6 +47,7 @@ class Session:
             return
         self._state = "running"
         self._paused.set()
+        await self._bridge.start()
         self._task = asyncio.create_task(self._run_loop())
 
     async def stop(self):
@@ -50,6 +59,7 @@ class Session:
         with contextlib.suppress(asyncio.CancelledError):
             await self._task
         self._task = None
+        await self._bridge.close()
         self._state = "idle"
         self._step = 0
 
@@ -69,29 +79,35 @@ class Session:
 
     async def reset(self):
         await self.stop()
+        self._logger.clear()
         self._instruction = ""
 
-    async def handle_sim_control(self, action: str):
+    async def handle_sim_control(self, action: str, speed: float | None = None):
         if action == "play":
             if self._state == "idle":
                 await self.start()
             else:
                 self.resume()
+            await self._bridge.sim_control("play", speed=speed)
         elif action == "pause":
             self.pause()
+            await self._bridge.sim_control("pause")
         elif action == "stop":
+            await self._bridge.sim_control("stop")
             await self.stop()
         elif action == "step":
             if self._state == "idle":
                 await self.start()
                 self.pause()
+            await self._bridge.sim_control("step")
             self.step_once()
         elif action == "reset":
+            await self._bridge.sim_control("reset")
             await self.reset()
 
     async def _run_loop(self):
         try:
-            async for obs in observation_stream():
+            async for obs in self._bridge.observation_stream():
                 paused_future = asyncio.ensure_future(self._paused.wait())
                 step_future = asyncio.ensure_future(self._step_once.wait())
                 try:
@@ -110,13 +126,15 @@ class Session:
                     self._step_once.clear()
 
                 self._step = obs["step"]
-                self._logger.log_observation(obs["image"], obs["joint_positions"], obs["step"])
+                self._logger.log_observation(obs, obs["step"])
 
                 if self._instruction:
                     self._logger.log_instruction(self._instruction, obs["step"])
 
                 action = await predict_action(obs)
                 self._logger.log_action(action, obs["step"])
+
+                await self._bridge.send_action(action)
 
                 if stepping:
                     self._paused.clear()

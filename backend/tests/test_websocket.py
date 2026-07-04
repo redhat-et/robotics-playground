@@ -15,6 +15,8 @@ def test_websocket_connect_receives_status(mock_rr: MagicMock):
         assert "state" in data
         assert "step" in data
         assert "instruction" in data
+        assert "bridge_status" in data
+        assert data["bridge_status"] == "mock"
 
 
 @patch("robotics_playground.rerun_logger.rr")
@@ -26,25 +28,21 @@ def test_websocket_connect_and_close(mock_rr: MagicMock):
 @patch("robotics_playground.rerun_logger.rr")
 def test_websocket_instruction_flow(mock_rr: MagicMock):
     with TestClient(app) as client, client.websocket_connect("/ws/sessions/test") as ws:
+        _ = ws.receive_json()  # initial status
         ws.send_json({"type": "instruction", "text": "wave"})
-        for _ in range(10):
-            data = ws.receive_json()
-            if data["type"] == "instruction_ack":
-                break
-        assert data["type"] == "instruction_ack"
-        assert data["status"] == "received"
-        assert data["text"] == "wave"
+        ack = ws.receive_json()
+        assert ack["type"] == "instruction_ack"
+        assert ack["status"] == "received"
+        assert ack["text"] == "wave"
 
 
 @patch("robotics_playground.rerun_logger.rr")
-def test_websocket_instruction_ack_includes_text(mock_rr: MagicMock):
+def test_websocket_sim_control_with_speed(mock_rr: MagicMock):
     with TestClient(app) as client, client.websocket_connect("/ws/sessions/test") as ws:
-        ws.send_json({"type": "instruction", "text": "pick up the red block"})
-        for _ in range(10):
-            data = ws.receive_json()
-            if data["type"] == "instruction_ack":
-                break
-        assert data["text"] == "pick up the red block"
+        _ = ws.receive_json()
+        ws.send_json({"type": "sim_control", "action": "play", "speed": 2.0})
+        status = ws.receive_json()
+        assert status["type"] == "status"
 
 
 @patch("robotics_playground.rerun_logger.rr")
