@@ -9,10 +9,16 @@ from robotics_playground.rerun_logger import RerunLogger
 
 @patch("robotics_playground.rerun_logger.rr")
 def test_start_initializes_rerun(mock_rr: MagicMock):
+    mock_rr.serve_grpc.return_value = "rerun+http://127.0.0.1:9876/proxy"
     logger = RerunLogger(port=9876)
     logger.start()
     mock_rr.init.assert_called_once_with("robotics_playground")
     mock_rr.serve_grpc.assert_called_once_with(grpc_port=9876)
+    mock_rr.serve_web_viewer.assert_called_once_with(
+        web_port=9090,
+        open_browser=False,
+        connect_to="rerun+http://127.0.0.1:9876/proxy",
+    )
 
 
 @patch("robotics_playground.rerun_logger.rr")

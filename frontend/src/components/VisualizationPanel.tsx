@@ -9,12 +9,10 @@ interface VisualizationPanelProps {
   connected: boolean;
 }
 
-const RERUN_VIEWER_URL = 'https://app.rerun.io/version/0.33.1/';
-
 function getRerunUrl(): string {
-  const grpcHost = window.location.hostname;
-  const grpcPort = 9876;
-  return `${RERUN_VIEWER_URL}?url=rerun+http://${grpcHost}:${grpcPort}/proxy`;
+  const host = window.location.hostname;
+  const webViewerPort = 9090;
+  return `http://${host}:${webViewerPort}`;
 }
 
 const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ connected }) => (
