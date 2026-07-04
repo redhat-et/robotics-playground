@@ -11,3 +11,4 @@ services:
     image: robotics-playground:${TAG:-local}
     ports:
       - "8000:8000"
+      - "9876:9876"

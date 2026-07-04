@@ -13,6 +13,6 @@ COPY --from=builder /install /usr/local
 COPY src/ /app/src/
 
 WORKDIR /app
-EXPOSE 8000
+EXPOSE 8000 9876
 
 CMD ["uvicorn", "robotics_playground.main:app", "--host", "0.0.0.0", "--port", "8000"]
