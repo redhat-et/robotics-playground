@@ -46,6 +46,7 @@ class Session:
             return
         self._task.cancel()
         self._paused.set()
+        self._step_once.clear()
         with contextlib.suppress(asyncio.CancelledError):
             await self._task
         self._task = None
@@ -93,12 +94,16 @@ class Session:
             async for obs in observation_stream():
                 paused_future = asyncio.ensure_future(self._paused.wait())
                 step_future = asyncio.ensure_future(self._step_once.wait())
-                _, pending = await asyncio.wait(
-                    [paused_future, step_future],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                for f in pending:
-                    f.cancel()
+                try:
+                    _, pending = await asyncio.wait(
+                        [paused_future, step_future],
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for f in pending:
+                        f.cancel()
+                finally:
+                    paused_future.cancel()
+                    step_future.cancel()
 
                 stepping = self._step_once.is_set()
                 if stepping:

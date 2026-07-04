@@ -11,7 +11,7 @@ Rerun SDK 0.33.1 imports and runs successfully in `registry.access.redhat.com/hi
 
 **Issue found:** NumPy 2.5.0 (a Rerun SDK dependency) ships precompiled C extensions that link against `libstdc++.so.6`. The `hi/python:3.14` distroless runtime image does not include this library, causing:
 
-```
+```text
 ImportError: libstdc++.so.6: cannot open shared object file: No such file or directory
 ```
 
@@ -27,7 +27,7 @@ This is a one-line addition. The library exists in `hi/python:3.14-builder` at `
 
 After the libstdc++ fix, Rerun's gRPC server starts successfully in the container:
 
-```
+```bash
 $ podman run --rm robotics-playground:fix-test python -c "
 import rerun as rr
 rr.init('test')

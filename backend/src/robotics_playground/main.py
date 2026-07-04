@@ -47,18 +47,20 @@ def list_models(type: str = Query(default="robotics")):
 async def websocket_session(websocket: WebSocket, session_id: str):
     await websocket.accept()
     session: Session = app.state.session
+    send_lock = asyncio.Lock()
 
     async def send_status():
         try:
             while True:
-                await websocket.send_json(
-                    {
-                        "type": "status",
-                        "state": session.state,
-                        "step": session.step,
-                        "instruction": session.instruction,
-                    }
-                )
+                async with send_lock:
+                    await websocket.send_json(
+                        {
+                            "type": "status",
+                            "state": session.state,
+                            "step": session.step,
+                            "instruction": session.instruction,
+                        }
+                    )
                 await asyncio.sleep(1)
         except (WebSocketDisconnect, ConnectionError):
             pass
@@ -78,9 +80,10 @@ async def websocket_session(websocket: WebSocket, session_id: str):
             if msg_type == "instruction":
                 text = msg.get("text", "")
                 session.send_instruction(text)
-                await websocket.send_json(
-                    {"type": "instruction_ack", "status": "received", "text": text}
-                )
+                async with send_lock:
+                    await websocket.send_json(
+                        {"type": "instruction_ack", "status": "received", "text": text}
+                    )
 
             elif msg_type == "sim_control":
                 action = msg.get("action", "")
