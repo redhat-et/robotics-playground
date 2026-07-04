@@ -1,9 +1,6 @@
 services:
   ui:
-    image: robotics-playground-ui:local
-    build:
-      context: ../frontend
-      dockerfile: Containerfile
+    image: robotics-playground-ui:${TAG:-local}
     ports:
       - "8080:8080"
     depends_on:
@@ -11,9 +8,6 @@ services:
         condition: service_started
 
   backend:
-    image: robotics-playground:local
-    build:
-      context: ../backend
-      dockerfile: Containerfile
+    image: robotics-playground:${TAG:-local}
     ports:
       - "8000:8000"
