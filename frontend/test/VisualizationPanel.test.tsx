@@ -15,10 +15,12 @@ describe('VisualizationPanel', () => {
     expect(iframe?.title).toBe('Rerun Viewer');
   });
 
-  it('iframe src points to local Rerun web viewer', () => {
+  it('iframe src points to local Rerun web viewer with gRPC URL', () => {
     render(<VisualizationPanel connected={true} />);
     const iframe = document.querySelector('iframe');
     expect(iframe?.src).toContain(':9090');
+    expect(iframe?.src).toContain('url=');
+    expect(iframe?.src).toContain('9876');
   });
 
   it('does not render iframe when disconnected', () => {

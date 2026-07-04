@@ -48,7 +48,7 @@ module.exports = {
     historyApiFallback: true,
     proxy: [
       { context: ['/api'], target: 'http://localhost:8000' },
-      { context: ['/ws'], target: 'http://localhost:8000', ws: true },
+      { context: ['/ws/sessions'], target: 'http://localhost:8000', ws: true },
     ],
   },
 };
