@@ -1,18 +1,41 @@
-FROM registry.access.redhat.com/hi/python:3.14-builder AS builder
+FROM registry.access.redhat.com/ubi9/python-312 AS builder
 
 USER 0
 WORKDIR /build
+
+RUN dnf install -y \
+    https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+    dnf install -y \
+    gcc \
+    python3-devel && \
+    dnf clean all
+
 COPY pyproject.toml ./
 COPY src/ src/
 RUN pip install --no-cache-dir --prefix=/install .
 
-FROM registry.access.redhat.com/hi/python:3.14
+FROM registry.access.redhat.com/ubi9/python-312
 
-COPY --from=builder /usr/lib64/libstdc++.so.6 /usr/lib64/libstdc++.so.6
+USER 0
+
+RUN dnf install -y \
+    https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    dnf config-manager --add-repo \
+    https://packages.ros.org/ros2/rhel/9/x86_64/ && \
+    dnf install -y --nogpgcheck \
+    ros-jazzy-rclpy \
+    ros-jazzy-sensor-msgs \
+    ros-jazzy-trajectory-msgs && \
+    dnf clean all
+
 COPY --from=builder /install /usr/local
 COPY src/ /app/src/
 
 WORKDIR /app
 EXPOSE 8000 9876 9090
+
+ENV PLAYGROUND_CONFIG=/etc/robotics-playground/config.yaml
 
 CMD ["uvicorn", "robotics_playground.main:app", "--host", "0.0.0.0", "--port", "8000"]

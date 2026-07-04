@@ -13,3 +13,17 @@ services:
       - "8000:8000"
       - "9876:9876"
       - "9090:9090"
+    volumes:
+      - ./config/playground.yaml:/etc/robotics-playground/config.yaml:ro
+    environment:
+      PLAYGROUND_CONFIG: /etc/robotics-playground/config.yaml
+
+  isaac-sim:
+    image: nvcr.io/nvidia/isaac-sim:4.5.0
+    profiles:
+      - gpu
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
