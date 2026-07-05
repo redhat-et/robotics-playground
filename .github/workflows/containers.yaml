@@ -14,7 +14,7 @@ env:
   SHORT_SHA: placeholder
 
 jobs:
-  build:
+  build-ui:
     strategy:
       matrix:
         include:
@@ -35,33 +35,53 @@ jobs:
             -t ${IMAGE_UI}:${{ matrix.arch }}-${SHORT_SHA} \
             -f frontend/Containerfile frontend/
 
-      - name: Build backend image
-        run: |
-          podman build \
-            -t ${IMAGE_BACKEND}:${{ matrix.arch }}-${SHORT_SHA} \
-            -f backend/Containerfile backend/
-
       - name: Login to Quay.io
         if: github.event_name == 'push'
         run: podman login -u ${{ secrets.QUAY_USERNAME }} -p ${{ secrets.QUAY_PASSWORD }} quay.io
 
       - name: Push per-arch images
         if: github.event_name == 'push'
-        run: |
-          podman push ${IMAGE_UI}:${{ matrix.arch }}-${SHORT_SHA}
-          podman push ${IMAGE_BACKEND}:${{ matrix.arch }}-${SHORT_SHA}
+        run: podman push ${IMAGE_UI}:${{ matrix.arch }}-${SHORT_SHA}
 
       - name: Tag and push release images
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG=${GITHUB_REF#refs/tags/}
-          for img in ${IMAGE_UI} ${IMAGE_BACKEND}; do
-            podman tag ${img}:${{ matrix.arch }}-${SHORT_SHA} ${img}:${{ matrix.arch }}-${TAG}
-            podman push ${img}:${{ matrix.arch }}-${TAG}
-          done
+          podman tag ${IMAGE_UI}:${{ matrix.arch }}-${SHORT_SHA} ${IMAGE_UI}:${{ matrix.arch }}-${TAG}
+          podman push ${IMAGE_UI}:${{ matrix.arch }}-${TAG}
+
+  build-backend:
+    # ROS 2 Jazzy RHEL 9 RPMs are x86_64-only
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+
+      - name: Build backend image
+        run: |
+          podman build \
+            -t ${IMAGE_BACKEND}:amd64-${SHORT_SHA} \
+            -f backend/Containerfile backend/
+
+      - name: Login to Quay.io
+        if: github.event_name == 'push'
+        run: podman login -u ${{ secrets.QUAY_USERNAME }} -p ${{ secrets.QUAY_PASSWORD }} quay.io
+
+      - name: Push image
+        if: github.event_name == 'push'
+        run: podman push ${IMAGE_BACKEND}:amd64-${SHORT_SHA}
+
+      - name: Tag and push release image
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          podman tag ${IMAGE_BACKEND}:amd64-${SHORT_SHA} ${IMAGE_BACKEND}:amd64-${TAG}
+          podman push ${IMAGE_BACKEND}:amd64-${TAG}
 
   manifest:
-    needs: build
+    needs: [build-ui, build-backend]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
@@ -71,32 +91,40 @@ jobs:
       - name: Login to Quay.io
         run: podman login -u ${{ secrets.QUAY_USERNAME }} -p ${{ secrets.QUAY_PASSWORD }} quay.io
 
-      - name: Create and push manifest lists (commit sha)
+      - name: Create and push UI manifest lists (commit sha)
         run: |
-          for img in ${IMAGE_UI} ${IMAGE_BACKEND}; do
-            podman manifest create ${img}:${SHORT_SHA}
-            podman manifest add ${img}:${SHORT_SHA} ${img}:amd64-${SHORT_SHA}
-            podman manifest add ${img}:${SHORT_SHA} ${img}:arm64-${SHORT_SHA}
-            podman manifest push ${img}:${SHORT_SHA} docker://${img}:${SHORT_SHA}
-          done
+          podman manifest create ${IMAGE_UI}:${SHORT_SHA}
+          podman manifest add ${IMAGE_UI}:${SHORT_SHA} ${IMAGE_UI}:amd64-${SHORT_SHA}
+          podman manifest add ${IMAGE_UI}:${SHORT_SHA} ${IMAGE_UI}:arm64-${SHORT_SHA}
+          podman manifest push ${IMAGE_UI}:${SHORT_SHA} docker://${IMAGE_UI}:${SHORT_SHA}
+
+      - name: Push backend image (commit sha)
+        run: |
+          podman pull ${IMAGE_BACKEND}:amd64-${SHORT_SHA}
+          podman tag ${IMAGE_BACKEND}:amd64-${SHORT_SHA} ${IMAGE_BACKEND}:${SHORT_SHA}
+          podman push ${IMAGE_BACKEND}:${SHORT_SHA} docker://${IMAGE_BACKEND}:${SHORT_SHA}
 
       - name: Create and push manifest lists (latest)
         if: github.ref == 'refs/heads/main'
         run: |
-          for img in ${IMAGE_UI} ${IMAGE_BACKEND}; do
-            podman manifest create ${img}:latest
-            podman manifest add ${img}:latest ${img}:amd64-${SHORT_SHA}
-            podman manifest add ${img}:latest ${img}:arm64-${SHORT_SHA}
-            podman manifest push ${img}:latest docker://${img}:latest
-          done
+          podman manifest create ${IMAGE_UI}:latest
+          podman manifest add ${IMAGE_UI}:latest ${IMAGE_UI}:amd64-${SHORT_SHA}
+          podman manifest add ${IMAGE_UI}:latest ${IMAGE_UI}:arm64-${SHORT_SHA}
+          podman manifest push ${IMAGE_UI}:latest docker://${IMAGE_UI}:latest
+
+          podman pull ${IMAGE_BACKEND}:amd64-${SHORT_SHA}
+          podman tag ${IMAGE_BACKEND}:amd64-${SHORT_SHA} ${IMAGE_BACKEND}:latest
+          podman push ${IMAGE_BACKEND}:latest docker://${IMAGE_BACKEND}:latest
 
       - name: Create and push manifest lists (release tag)
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG=${GITHUB_REF#refs/tags/}
-          for img in ${IMAGE_UI} ${IMAGE_BACKEND}; do
-            podman manifest create ${img}:${TAG}
-            podman manifest add ${img}:${TAG} ${img}:amd64-${SHORT_SHA}
-            podman manifest add ${img}:${TAG} ${img}:arm64-${SHORT_SHA}
-            podman manifest push ${img}:${TAG} docker://${img}:${TAG}
-          done
+          podman manifest create ${IMAGE_UI}:${TAG}
+          podman manifest add ${IMAGE_UI}:${TAG} ${IMAGE_UI}:amd64-${SHORT_SHA}
+          podman manifest add ${IMAGE_UI}:${TAG} ${IMAGE_UI}:arm64-${SHORT_SHA}
+          podman manifest push ${IMAGE_UI}:${TAG} docker://${IMAGE_UI}:${TAG}
+
+          podman pull ${IMAGE_BACKEND}:amd64-${SHORT_SHA}
+          podman tag ${IMAGE_BACKEND}:amd64-${SHORT_SHA} ${IMAGE_BACKEND}:${TAG}
+          podman push ${IMAGE_BACKEND}:${TAG} docker://${IMAGE_BACKEND}:${TAG}
