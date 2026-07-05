@@ -18,12 +18,9 @@ FROM registry.access.redhat.com/ubi9/python-312
 
 USER 0
 
-RUN ARCH=$(uname -m) && \
-    dnf install -y \
-    https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
-    rpm --import https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc && \
-    dnf config-manager --add-repo \
-    "https://packages.ros.org/ros2/rhel/9/${ARCH}/" && \
+RUN dnf install -y \
+    https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
+    https://github.com/ros-infrastructure/ros-apt-source/releases/download/1.2.0/ros2-release-1.2.0-1.noarch.rpm && \
     dnf install -y \
     ros-jazzy-rclpy \
     ros-jazzy-sensor-msgs \
