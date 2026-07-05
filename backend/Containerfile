@@ -28,8 +28,7 @@ RUN ARCH=$(uname -m) && \
     dnf install -y --nogpgcheck \
     ros-jazzy-rclpy \
     ros-jazzy-sensor-msgs \
-    ros-jazzy-simulation-interfaces \
-    ros-jazzy-trajectory-msgs && \
+    ros-jazzy-simulation-interfaces && \
     dnf clean all
 
 COPY --from=builder /install /usr/local

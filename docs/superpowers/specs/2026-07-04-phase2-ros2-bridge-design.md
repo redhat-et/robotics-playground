@@ -90,7 +90,7 @@ Action = TypedDict("Action", {
 })
 ```
 
-In Phase 2, the mock policy still generates random actions. `ROS2Bridge.send_action()` translates these into a `trajectory_msgs/JointTrajectory` message. `MockBridge.send_action()` is a no-op (the mock has no actuator to command).
+In Phase 2, the mock policy still generates random actions. `ROS2Bridge.send_action()` translates these into a `sensor_msgs/JointState` message (matching Isaac Sim's OmniGraph joint command subscriber). `MockBridge.send_action()` is a no-op (the mock has no actuator to command).
 
 ### Session Refactoring
 
@@ -134,9 +134,9 @@ Camera and joint state messages arrive on separate topics at different rates. Th
 | --------------------- | ------------- | ----------- | --------------- |
 | Camera topics (configurable) | `sensor_msgs/msg/Image` | Subscribe | `_on_image_cb` → decode to numpy |
 | Joint state topic | `sensor_msgs/msg/JointState` | Subscribe | `_on_joint_state_cb` → extract positions/velocities |
-| Joint command topic | `trajectory_msgs/msg/JointTrajectory` | Publish | `send_action()` |
-| `/set_simulation_state` | `simulation_interfaces/srv/SetSimulationState` | Call | `sim_control("play"\|"pause"\|"stop")` |
-| `/step_simulation` | `simulation_interfaces/srv/StepSimulation` | Call | `sim_control("step")` |
+| Joint command topic | `sensor_msgs/msg/JointState` | Publish | `send_action()` |
+| `/isaacsim/SetSimulationState` (configurable) | `simulation_interfaces/srv/SetSimulationState` | Call | `sim_control("play"\|"pause"\|"stop")` |
+| `/isaacsim/StepSimulation` (configurable) | `simulation_interfaces/srv/StepSimulation` | Call | `sim_control("step")` |
 
 The `simulation_interfaces` package is the [ROS 2 Simulation Interfaces standard](https://github.com/ros-simulation/simulation_interfaces). `SetSimulationState` takes a state enum (`STATE_STOPPED=0`, `STATE_PLAYING=1`, `STATE_PAUSED=2`). `StepSimulation` advances by N frames while paused and blocks until complete.
 
@@ -171,7 +171,8 @@ ros2:
     head: "/camera/head/rgb"
   joint_state_topic: "/joint_states"
   joint_command_topic: "/joint_commands"
-  sim_control_service: "/sim_control"
+  set_sim_state_service: "/isaacsim/SetSimulationState"
+  step_simulation_service: "/isaacsim/StepSimulation"
 ```
 
 The config file path is set by `PLAYGROUND_CONFIG` env var (default: `/etc/robotics-playground/config.yaml`). Individual fields can be overridden by env vars using Pydantic's nested delimiter (e.g. `BRIDGE__TYPE=ros2`).
@@ -198,7 +199,6 @@ ROS 2 packages are installed from RPMs in the container image, not via pip:
 
 - `ros-jazzy-rclpy`
 - `ros-jazzy-sensor-msgs`
-- `ros-jazzy-trajectory-msgs`
 - `ros-jazzy-simulation-interfaces`
 
 The `pyproject.toml` does not gain ROS 2 entries — they are system packages.
