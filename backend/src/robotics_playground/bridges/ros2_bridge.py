@@ -70,7 +70,16 @@ class ROS2Bridge:
             10,
         )
 
-        from simulation_interfaces.srv import SetSimulationState, StepSimulation
+        try:
+            from simulation_interfaces.srv import SetSimulationState, StepSimulation
+        except ImportError:
+            from robotics_playground.vendored.simulation_interfaces.srv import (
+                SetSimulationState,
+                StepSimulation,
+            )
+
+        self._SetSimulationState = SetSimulationState
+        self._StepSimulation = StepSimulation
 
         self._sim_state_client = self._node.create_client(
             SetSimulationState, self._config.set_sim_state_service
@@ -130,10 +139,8 @@ class ROS2Bridge:
             return
 
         if action in ("play", "pause", "stop"):
-            from simulation_interfaces.srv import SetSimulationState
-
             state_map = {"stop": 0, "play": 1, "pause": 2}
-            req = SetSimulationState.Request()
+            req = self._SetSimulationState.Request()
             req.state.state = state_map[action]
             if self._sim_state_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
@@ -141,9 +148,7 @@ class ROS2Bridge:
                 )
 
         elif action == "step":
-            from simulation_interfaces.srv import StepSimulation
-
-            req = StepSimulation.Request()
+            req = self._StepSimulation.Request()
             req.steps = 1
             if self._step_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
@@ -151,9 +156,7 @@ class ROS2Bridge:
                 )
 
         elif action == "reset":
-            from simulation_interfaces.srv import SetSimulationState
-
-            req = SetSimulationState.Request()
+            req = self._SetSimulationState.Request()
             req.state.state = 0
             if self._sim_state_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
