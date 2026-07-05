@@ -23,6 +23,8 @@ RUN dnf install -y \
     https://github.com/ros-infrastructure/ros-apt-source/releases/download/1.2.0/ros2-release-1.2.0-1.noarch.rpm && \
     /usr/bin/crb enable && \
     dnf install -y \
+    lttng-ust-devel \
+    python3-lark-parser \
     ros-jazzy-rclpy \
     ros-jazzy-sensor-msgs \
     ros-jazzy-simulation-interfaces && \
