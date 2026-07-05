@@ -24,8 +24,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     session = Session(bridge=bridge, rerun_logger=logger)
     app.state.rerun_logger = logger
     app.state.session = session
-    yield
-    await session.stop()
+    try:
+        yield
+    finally:
+        await session.stop()
 
 
 app = FastAPI(title="Robotics Playground", lifespan=lifespan)

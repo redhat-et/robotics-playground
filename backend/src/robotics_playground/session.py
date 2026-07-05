@@ -45,9 +45,9 @@ class Session:
     async def start(self):
         if self._task is not None:
             return
-        self._state = "running"
         self._paused.set()
         await self._bridge.start()
+        self._state = "running"
         self._task = asyncio.create_task(self._run_loop())
 
     async def stop(self):

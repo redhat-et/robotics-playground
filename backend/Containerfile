@@ -22,10 +22,11 @@ RUN ARCH=$(uname -m) && \
     dnf install -y \
     https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-    -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    -o /etc/pki/rpm-gpg/RPM-GPG-KEY-ros2 && \
+    rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-ros2 && \
     dnf config-manager --add-repo \
     "https://packages.ros.org/ros2/rhel/9/${ARCH}/" && \
-    dnf install -y --nogpgcheck \
+    dnf install -y \
     ros-jazzy-rclpy \
     ros-jazzy-sensor-msgs \
     ros-jazzy-simulation-interfaces && \
@@ -38,5 +39,7 @@ WORKDIR /app
 EXPOSE 8000 9876 9090
 
 ENV PLAYGROUND_CONFIG=/etc/robotics-playground/config.yaml
+
+USER 1001
 
 CMD ["uvicorn", "robotics_playground.main:app", "--host", "0.0.0.0", "--port", "8000"]

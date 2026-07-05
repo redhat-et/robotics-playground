@@ -84,8 +84,8 @@ class ROS2Bridge:
         self._status = "connected"
 
     def _spin(self):
-        while self._executor is not None:
-            self._executor.spin_once(timeout_sec=0.1)
+        while (executor := self._executor) is not None:
+            executor.spin_once(timeout_sec=0.1)
 
     def _handle_image(self, camera_name: str, msg):
         data = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, -1)
@@ -134,7 +134,7 @@ class ROS2Bridge:
 
             state_map = {"stop": 0, "play": 1, "pause": 2}
             req = SetSimulationState.Request()
-            req.state.data = state_map[action]
+            req.state.state = state_map[action]
             if self._sim_state_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
                     None, lambda: self._sim_state_client.call(req)
@@ -144,7 +144,7 @@ class ROS2Bridge:
             from simulation_interfaces.srv import StepSimulation
 
             req = StepSimulation.Request()
-            req.num_steps = 1
+            req.steps = 1
             if self._step_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
                     None, lambda: self._step_client.call(req)
@@ -154,7 +154,7 @@ class ROS2Bridge:
             from simulation_interfaces.srv import SetSimulationState
 
             req = SetSimulationState.Request()
-            req.state.data = 0
+            req.state.state = 0
             if self._sim_state_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
                     None, lambda: self._sim_state_client.call(req)
