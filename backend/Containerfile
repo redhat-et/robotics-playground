@@ -1,29 +1,19 @@
-FROM quay.io/centos/centos:stream9 AS builder
+FROM registry.access.redhat.com/ubi10/ubi AS builder
 
 WORKDIR /build
 
-RUN dnf install -y \
-    python3.12 \
-    python3.12-pip \
-    python3.12-devel \
-    gcc && \
-    dnf clean all
+RUN dnf install -y python3-pip python3-devel gcc && dnf clean all
 
 COPY pyproject.toml ./
 COPY src/ src/
-RUN pip3.12 install --no-cache-dir --prefix=/install .
+RUN pip3 install --no-cache-dir --prefix=/install .
 
-FROM quay.io/centos/centos:stream9
+FROM registry.access.redhat.com/ubi10/ubi
 
-RUN dnf install -y \
-    python3.12 \
-    https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
-    https://github.com/ros-infrastructure/ros-apt-source/releases/download/1.2.0/ros2-release-1.2.0-1.noarch.rpm && \
-    dnf config-manager --set-enabled crb && \
-    dnf install -y \
-    ros-jazzy-rclpy \
-    ros-jazzy-sensor-msgs \
-    ros-jazzy-simulation-interfaces && \
+COPY hellaenergy-ros2.repo /etc/yum.repos.d/hellaenergy-ros2.repo
+
+RUN rpm --import https://download.copr.fedorainfracloud.org/results/hellaenergy/ros2/pubkey.gpg && \
+    dnf install -y python3 ros-jazzy-rclpy ros-jazzy-sensor-msgs && \
     dnf clean all
 
 COPY --from=builder /install /usr/local
@@ -36,4 +26,4 @@ ENV PLAYGROUND_CONFIG=/etc/robotics-playground/config.yaml
 
 USER 1001
 
-CMD ["python3.12", "-m", "uvicorn", "robotics_playground.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3", "-m", "uvicorn", "robotics_playground.main:app", "--host", "0.0.0.0", "--port", "8000"]
