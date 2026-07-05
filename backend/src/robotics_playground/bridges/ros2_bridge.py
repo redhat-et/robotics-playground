@@ -64,10 +64,8 @@ class ROS2Bridge:
             10,
         )
 
-        from trajectory_msgs.msg import JointTrajectory
-
         self._publisher = self._node.create_publisher(
-            JointTrajectory,
+            JointState,
             self._config.joint_command_topic,
             10,
         )
@@ -75,9 +73,11 @@ class ROS2Bridge:
         from simulation_interfaces.srv import SetSimulationState, StepSimulation
 
         self._sim_state_client = self._node.create_client(
-            SetSimulationState, "/set_simulation_state"
+            SetSimulationState, self._config.set_sim_state_service
         )
-        self._step_client = self._node.create_client(StepSimulation, "/step_simulation")
+        self._step_client = self._node.create_client(
+            StepSimulation, self._config.step_simulation_service
+        )
 
         self._spin_thread = threading.Thread(target=self._spin, daemon=True)
         self._spin_thread.start()
@@ -119,12 +119,10 @@ class ROS2Bridge:
     async def send_action(self, action: Action) -> None:
         if self._publisher is None or self._node is None:
             return
-        from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+        from sensor_msgs.msg import JointState
 
-        msg = JointTrajectory()
-        point = JointTrajectoryPoint()
-        point.positions = [float(p) for p in action["joint_positions"]]
-        msg.points = [point]
+        msg = JointState()
+        msg.position = [float(p) for p in action["joint_positions"]]
         self._publisher.publish(msg)
 
     async def sim_control(self, action: str, speed: float | None = None) -> None:

@@ -27,8 +27,6 @@ def mock_rclpy():
         "rclpy.qos": MagicMock(),
         "sensor_msgs": MagicMock(),
         "sensor_msgs.msg": MagicMock(),
-        "trajectory_msgs": MagicMock(),
-        "trajectory_msgs.msg": MagicMock(),
         "simulation_interfaces": MagicMock(),
         "simulation_interfaces.srv": MagicMock(),
     }

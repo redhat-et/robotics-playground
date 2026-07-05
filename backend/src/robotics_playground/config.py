@@ -28,7 +28,8 @@ class ROS2Config(BaseModel):
     cameras: dict[str, str] = {}
     joint_state_topic: str = "/joint_states"
     joint_command_topic: str = "/joint_commands"
-    sim_control_service: str = "/sim_control"
+    set_sim_state_service: str = "/isaacsim/SetSimulationState"
+    step_simulation_service: str = "/isaacsim/StepSimulation"
 
 
 class PlaygroundConfig(BaseModel):

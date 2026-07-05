@@ -18,4 +18,5 @@ ros2:
     head: "/camera/head/rgb"
   joint_state_topic: "/joint_states"
   joint_command_topic: "/joint_commands"
-  sim_control_service: "/sim_control"
+  set_sim_state_service: "/isaacsim/SetSimulationState"
+  step_simulation_service: "/isaacsim/StepSimulation"
