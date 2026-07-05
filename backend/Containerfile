@@ -21,6 +21,7 @@ USER 0
 RUN dnf install -y \
     https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
     https://github.com/ros-infrastructure/ros-apt-source/releases/download/1.2.0/ros2-release-1.2.0-1.noarch.rpm && \
+    /usr/bin/crb enable && \
     dnf install -y \
     ros-jazzy-rclpy \
     ros-jazzy-sensor-msgs \
