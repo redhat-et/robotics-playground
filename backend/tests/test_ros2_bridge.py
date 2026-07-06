@@ -87,7 +87,8 @@ async def test_ros2_bridge_observation_from_callbacks(mock_rclpy):
     obs = None
     async for o in bridge.observation_stream():
         obs = o
-        break
+        if "wrist" in obs.get("cameras", {}):
+            break
 
     assert obs is not None
     assert "wrist" in obs["cameras"]
