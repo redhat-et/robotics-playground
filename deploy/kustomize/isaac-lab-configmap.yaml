@@ -47,16 +47,21 @@ data:
 
     CAMERA_CONFIGS = {
         "wrist": CameraCfg(
-            prim_path="/World/WristCamMount/wrist_cam",
+            prim_path="/World/Robot/panda_hand/wrist_cam",
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.04, 0.0, 0.05),
+                rot=(0.7071068, 0.0, 0.0, 0.7071068),
+                convention="ros",
+            ),
             update_period=CAM_UPDATE_PERIOD,
             height=CAM_HEIGHT,
             width=CAM_WIDTH,
             data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0,
+                focal_length=1.93,
                 focus_distance=400.0,
-                horizontal_aperture=20.955,
-                clipping_range=(0.01, 20.0),
+                horizontal_aperture=3.6,
+                clipping_range=(0.01, 5.0),
             ),
         ),
         "exterior_1": CameraCfg(
@@ -118,7 +123,6 @@ data:
         cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         cfg.func("/World/Light", cfg)
 
-        sim_utils.create_prim("/World/WristCamMount", "Xform")
         sim_utils.create_prim("/World/ExtCam1", "Xform")
         sim_utils.create_prim("/World/ExtCam2", "Xform")
 
@@ -152,11 +156,8 @@ data:
 
         cameras = scene_entities["cameras"]
 
+        # Position exterior cameras after sim.reset() allocates buffers
         device = sim.device
-        cameras["wrist"].set_world_poses_from_view(
-            eyes=torch.tensor([[0.3, 0.0, 1.3]], device=device),
-            targets=torch.tensor([[0.5, 0.0, 1.05]], device=device),
-        )
         cameras["exterior_1"].set_world_poses_from_view(
             eyes=torch.tensor([[1.5, -1.0, 2.0]], device=device),
             targets=torch.tensor([[0.0, 0.0, 1.05]], device=device),
