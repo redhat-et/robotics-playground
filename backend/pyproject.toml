@@ -22,6 +22,9 @@ dev = [
     "anyio>=4.0.0",
 ]
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100

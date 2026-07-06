@@ -3,19 +3,48 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import rerun as rr
+import rerun.blueprint as rrb
 
 if TYPE_CHECKING:
     from robotics_playground.bridges.protocol import Action, Observation
 
 
 class RerunLogger:
-    def __init__(self, port: int = 9876, web_port: int = 9090, policy_index: int = 0):
+    def __init__(
+        self,
+        port: int = 9876,
+        web_port: int = 9090,
+        policy_index: int = 0,
+        camera_names: list[str] | None = None,
+    ):
         self._port = port
         self._web_port = web_port
         self._prefix = f"session/policy_{policy_index}"
+        self._camera_names = camera_names or ["wrist", "exterior_1", "exterior_2"]
         self._initialized = False
         self._step_offset = 0
         self._last_step = 0
+
+    def _build_blueprint(self) -> rrb.Blueprint:
+        camera_views = [
+            rrb.Spatial2DView(
+                origin=f"{self._prefix}/camera/{name}",
+                name=name,
+            )
+            for name in self._camera_names
+        ]
+        return rrb.Blueprint(
+            rrb.Vertical(
+                rrb.Horizontal(*camera_views),
+                rrb.TimeSeriesView(
+                    origin=f"{self._prefix}/joints",
+                    name="Joint Positions",
+                    plot_legend=rrb.PlotLegend(visible=False),
+                ),
+                row_shares=[7, 2],
+            ),
+            collapse_panels=True,
+        )
 
     def start(self):
         if self._initialized:
@@ -27,6 +56,7 @@ class RerunLogger:
             open_browser=False,
             connect_to=server_uri,
         )
+        rr.send_blueprint(self._build_blueprint())
         self._initialized = True
 
     def clear(self):
