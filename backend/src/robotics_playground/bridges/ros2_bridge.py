@@ -72,21 +72,23 @@ class ROS2Bridge:
 
         try:
             from simulation_interfaces.srv import SetSimulationState, StepSimulation
-        except ImportError:
+
+            self._SetSimulationState = SetSimulationState
+            self._StepSimulation = StepSimulation
+            self._sim_state_client = self._node.create_client(
+                SetSimulationState, self._config.set_sim_state_service
+            )
+            self._step_client = self._node.create_client(
+                StepSimulation, self._config.step_simulation_service
+            )
+        except (ImportError, AttributeError):
             from robotics_playground.vendored.simulation_interfaces.srv import (
                 SetSimulationState,
                 StepSimulation,
             )
 
-        self._SetSimulationState = SetSimulationState
-        self._StepSimulation = StepSimulation
-
-        self._sim_state_client = self._node.create_client(
-            SetSimulationState, self._config.set_sim_state_service
-        )
-        self._step_client = self._node.create_client(
-            StepSimulation, self._config.step_simulation_service
-        )
+            self._SetSimulationState = SetSimulationState
+            self._StepSimulation = StepSimulation
 
         self._spin_thread = threading.Thread(target=self._spin, daemon=True)
         self._spin_thread.start()
@@ -103,22 +105,30 @@ class ROS2Bridge:
     def _handle_joint_state(self, msg):
         self._on_joint_state_received(list(msg.position), list(msg.velocity))
 
+    def _enqueue_observation(self):
+        if self._loop is None or not self._latest_joint_positions:
+            return
+        obs = Observation(
+            step=self._step,
+            cameras=dict(self._latest_cameras),
+            joint_positions=list(self._latest_joint_positions),
+            joint_velocities=list(self._latest_joint_velocities),
+        )
+        self._step += 1
+        self._loop.call_soon_threadsafe(self._try_put, obs)
+
+    def _try_put(self, obs: Observation):
+        with contextlib.suppress(asyncio.QueueFull):
+            self._obs_queue.put_nowait(obs)
+
     def _on_image_received(self, camera_name: str, image: np.ndarray):
         self._latest_cameras[camera_name] = image
-        if self._latest_joint_positions and self._loop is not None:
-            obs = Observation(
-                step=self._step,
-                cameras=dict(self._latest_cameras),
-                joint_positions=list(self._latest_joint_positions),
-                joint_velocities=list(self._latest_joint_velocities),
-            )
-            self._step += 1
-            with contextlib.suppress(asyncio.QueueFull):
-                self._loop.call_soon_threadsafe(self._obs_queue.put_nowait, obs)
+        self._enqueue_observation()
 
     def _on_joint_state_received(self, positions: list[float], velocities: list[float]):
         self._latest_joint_positions = positions
         self._latest_joint_velocities = velocities
+        self._enqueue_observation()
 
     async def observation_stream(self) -> AsyncIterator[Observation]:
         while True:
