@@ -18,10 +18,21 @@ services:
     environment:
       PLAYGROUND_CONFIG: /etc/robotics-playground/config.yaml
 
-  isaac-sim:
-    image: nvcr.io/nvidia/isaac-sim:4.5.0
+  isaac-lab:
+    image: nvcr.io/nvidia/isaac-lab:2.3.2
     profiles:
       - gpu
+    network_mode: host
+    ipc: host
+    security_opt:
+      - label=disable
+    entrypoint: ""
+    environment:
+      LD_LIBRARY_PATH: /isaac-sim/exts/isaacsim.ros2.bridge/jazzy/lib
+    volumes:
+      - ./isaac-sim/launch_ros2_scene.py:/app/launch_ros2_scene.py:ro
+    command: >-
+      bash -c './isaaclab.sh -p /app/launch_ros2_scene.py --headless --enable_cameras'
     deploy:
       resources:
         reservations:

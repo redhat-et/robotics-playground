@@ -7,3 +7,5 @@ resources:
   - backend-deployment.yaml
   - backend-service.yaml
   - configmap.yaml
+  - isaac-lab-deployment.yaml
+  - isaac-lab-configmap.yaml
