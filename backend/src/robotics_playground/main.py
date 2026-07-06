@@ -18,7 +18,11 @@ config = load_config()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    logger = RerunLogger(port=config.rerun.grpc_port, web_port=config.rerun.web_port)
+    logger = RerunLogger(
+        port=config.rerun.grpc_port,
+        web_port=config.rerun.web_port,
+        camera_names=list(config.ros2.cameras.keys()) or None,
+    )
     logger.start()
     bridge = create_bridge(config)
     session = Session(bridge=bridge, rerun_logger=logger)
