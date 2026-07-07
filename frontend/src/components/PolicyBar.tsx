@@ -7,6 +7,7 @@ import {
   FormSelectOption,
   Spinner,
 } from '@patternfly/react-core';
+import { API_BASE } from '../utils/apiBase';
 
 interface Model {
   id: string;
@@ -20,7 +21,7 @@ const PolicyBar: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/models?type=robotics')
+    fetch(`${API_BASE}/api/models?type=robotics`)
       .then((res) => res.json())
       .then((data) => {
         const fetched: Model[] = data.models ?? [];
