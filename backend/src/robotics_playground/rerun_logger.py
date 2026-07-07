@@ -20,7 +20,7 @@ class RerunLogger:
         self._port = port
         self._web_port = web_port
         self._prefix = f"session/policy_{policy_index}"
-        self._camera_names = camera_names or ["wrist", "exterior_1", "exterior_2"]
+        self._camera_names = camera_names or ["exterior_1", "exterior_2", "wrist"]
         self._initialized = False
         self._step_offset = 0
         self._last_step = 0
