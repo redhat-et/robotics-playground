@@ -42,7 +42,8 @@ class ROS2Bridge:
 
         self._loop = asyncio.get_running_loop()
 
-        rclpy.init(domain_id=self._config.domain_id)
+        if not rclpy.ok():
+            rclpy.init(domain_id=self._config.domain_id)
         self._node = Node("robotics_playground_bridge")
         self._executor = SingleThreadedExecutor()
         self._executor.add_node(self._node)
