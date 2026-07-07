@@ -73,6 +73,20 @@ async def test_ros2_bridge_close_shuts_down(mock_rclpy):
 
 
 @pytest.mark.anyio
+async def test_ros2_bridge_close_skips_shutdown_when_not_owner(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    mock_rclpy["rclpy"].ok = MagicMock(return_value=True)
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+    mock_rclpy["rclpy"].init.assert_not_called()
+    await bridge.close()
+    mock_rclpy["rclpy"].shutdown.assert_not_called()
+    assert bridge.bridge_status == "disconnected"
+
+
+@pytest.mark.anyio
 async def test_ros2_bridge_observation_from_callbacks(mock_rclpy):
     from robotics_playground.bridges.ros2_bridge import ROS2Bridge
     from robotics_playground.config import ROS2Config
