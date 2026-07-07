@@ -25,9 +25,27 @@ import omni.kit.app
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation
+from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.sensors import Camera, CameraCfg
 from isaaclab_assets import FRANKA_PANDA_CFG
+
+
+TABLE_HEIGHT = 1.05
+CUBE_SIZE = 0.06
+CUBE_CONFIGS = {
+    "blue": {
+        "pos": (0.35, -0.12, TABLE_HEIGHT + CUBE_SIZE / 2),
+        "color": (0.2, 0.3, 0.9),
+    },
+    "red": {
+        "pos": (0.45, 0.08, TABLE_HEIGHT + CUBE_SIZE / 2),
+        "color": (0.9, 0.2, 0.2),
+    },
+    "green": {
+        "pos": (0.50, -0.05, TABLE_HEIGHT + CUBE_SIZE / 2),
+        "color": (0.2, 0.8, 0.3),
+    },
+}
 
 
 CAM_WIDTH = 320
@@ -114,18 +132,43 @@ def design_scene():
     cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     cfg.func("/World/Light", cfg)
 
+    # Table surface
+    cfg = sim_utils.CuboidCfg(
+        size=(0.8, 0.8, TABLE_HEIGHT),
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.6, 0.5, 0.4)),
+    )
+    cfg.func("/World/Table", cfg, translation=(0.4, 0.0, TABLE_HEIGHT / 2))
+
     sim_utils.create_prim("/World/ExtCam1", "Xform")
     sim_utils.create_prim("/World/ExtCam2", "Xform")
 
     franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
-    franka_cfg.init_state.pos = (0.0, 0.0, 1.05)
+    franka_cfg.init_state.pos = (0.0, 0.0, TABLE_HEIGHT)
     franka = Articulation(cfg=franka_cfg)
+
+    # Colored cubes on the table
+    cubes = {}
+    for name, cube_info in CUBE_CONFIGS.items():
+        cube_cfg = RigidObjectCfg(
+            prim_path=f"/World/{name}_cube",
+            spawn=sim_utils.CuboidCfg(
+                size=(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
+                collision_props=sim_utils.CollisionPropertiesCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=cube_info["color"],
+                ),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=cube_info["pos"]),
+        )
+        cubes[name] = RigidObject(cfg=cube_cfg)
 
     cameras = {}
     for name, cam_cfg in CAMERA_CONFIGS.items():
         cameras[name] = Camera(cfg=cam_cfg)
 
-    return {"franka": franka, "cameras": cameras}
+    return {"franka": franka, "cameras": cameras, "cubes": cubes}
 
 
 def main():
@@ -146,16 +189,17 @@ def main():
     sim.reset()
 
     cameras = scene_entities["cameras"]
+    cubes = scene_entities["cubes"]
 
     # Position exterior cameras after sim.reset() allocates buffers
     device = sim.device
     cameras["exterior_1"].set_world_poses_from_view(
-        eyes=torch.tensor([[1.5, -1.0, 2.0]], device=device),
-        targets=torch.tensor([[0.0, 0.0, 1.05]], device=device),
+        eyes=torch.tensor([[1.0, -0.6, 1.6]], device=device),
+        targets=torch.tensor([[0.3, 0.0, 1.1]], device=device),
     )
     cameras["exterior_2"].set_world_poses_from_view(
-        eyes=torch.tensor([[1.5, 1.0, 2.0]], device=device),
-        targets=torch.tensor([[0.0, 0.0, 1.05]], device=device),
+        eyes=torch.tensor([[1.0, 0.6, 1.6]], device=device),
+        targets=torch.tensor([[0.3, 0.0, 1.1]], device=device),
     )
 
     # rclpy.init() already called by isaacsim.ros2.bridge extension
@@ -188,6 +232,8 @@ def main():
     while simulation_app.is_running():
         sim.step()
         franka.update(sim_dt)
+        for cube in cubes.values():
+            cube.update(sim_dt)
 
         for cam in cameras.values():
             cam.update(sim_dt)
