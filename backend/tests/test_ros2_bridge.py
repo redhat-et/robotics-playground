@@ -16,6 +16,7 @@ def mock_rclpy():
 
     mock_rclpy_module = MagicMock()
     mock_rclpy_module.init = MagicMock()
+    mock_rclpy_module.ok = MagicMock(return_value=False)
     mock_rclpy_module.shutdown = MagicMock()
 
     mock_node_class = MagicMock(return_value=mock_node)
