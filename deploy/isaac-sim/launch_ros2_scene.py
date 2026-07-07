@@ -27,7 +27,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg
 from isaaclab.sensors import Camera, CameraCfg
-from isaaclab_assets import FRANKA_PANDA_CFG
+from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG
 
 
 TABLE_HEIGHT = 1.05
@@ -47,6 +47,8 @@ CUBE_CONFIGS = {
     },
 }
 
+# Manipulation-ready pose (from FrankaCubeStackEnvCfg)
+DEFAULT_JOINT_POS = [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 0.04, 0.04]
 
 CAM_WIDTH = 320
 CAM_HEIGHT = 180
@@ -132,9 +134,10 @@ def design_scene():
     cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     cfg.func("/World/Light", cfg)
 
-    # Table surface
+    # Table surface (with collision so cubes rest on it)
     cfg = sim_utils.CuboidCfg(
         size=(0.8, 0.8, TABLE_HEIGHT),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.6, 0.5, 0.4)),
     )
     cfg.func("/World/Table", cfg, translation=(0.4, 0.0, TABLE_HEIGHT / 2))
@@ -142,7 +145,7 @@ def design_scene():
     sim_utils.create_prim("/World/ExtCam1", "Xform")
     sim_utils.create_prim("/World/ExtCam2", "Xform")
 
-    franka_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
+    franka_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="/World/Robot")
     franka_cfg.init_state.pos = (0.0, 0.0, TABLE_HEIGHT)
     franka = Articulation(cfg=franka_cfg)
 
@@ -190,15 +193,19 @@ def main():
 
     cameras = scene_entities["cameras"]
     cubes = scene_entities["cubes"]
+    franka = scene_entities["franka"]
+
+    # Target pose for PD controller — applied each sim step
+    target_joint_pos = torch.tensor([DEFAULT_JOINT_POS], dtype=torch.float32, device=sim.device)
 
     # Position exterior cameras after sim.reset() allocates buffers
     device = sim.device
     cameras["exterior_1"].set_world_poses_from_view(
-        eyes=torch.tensor([[1.0, -0.6, 1.6]], device=device),
+        eyes=torch.tensor([[1.5, -0.8, 1.8]], device=device),
         targets=torch.tensor([[0.3, 0.0, 1.1]], device=device),
     )
     cameras["exterior_2"].set_world_poses_from_view(
-        eyes=torch.tensor([[1.0, 0.6, 1.6]], device=device),
+        eyes=torch.tensor([[1.5, 0.8, 1.8]], device=device),
         targets=torch.tensor([[0.3, 0.0, 1.1]], device=device),
     )
 
@@ -214,7 +221,6 @@ def main():
     spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     spin_thread.start()
 
-    franka = scene_entities["franka"]
     joint_names = [
         "panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4",
         "panda_joint5", "panda_joint6", "panda_joint7",
@@ -230,6 +236,8 @@ def main():
     sim_dt = sim.get_physics_dt()
     count = 0
     while simulation_app.is_running():
+        franka.set_joint_position_target(target_joint_pos)
+        franka.write_data_to_sim()
         sim.step()
         franka.update(sim_dt)
         for cube in cubes.values():
