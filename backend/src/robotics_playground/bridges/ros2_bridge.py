@@ -28,6 +28,7 @@ class ROS2Bridge:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._status = "disconnected"
         self._publisher = None
+        self._owns_rclpy = False
         self._sim_state_client = None
         self._step_client = None
 
@@ -44,6 +45,7 @@ class ROS2Bridge:
 
         if not rclpy.ok():
             rclpy.init(domain_id=self._config.domain_id)
+            self._owns_rclpy = True
         self._node = Node("robotics_playground_bridge")
         self._executor = SingleThreadedExecutor()
         self._executor.add_node(self._node)
@@ -184,7 +186,9 @@ class ROS2Bridge:
         if self._node is not None:
             self._node.destroy_node()
             self._node = None
-        import rclpy
+        if self._owns_rclpy:
+            import rclpy
 
-        rclpy.shutdown()
+            rclpy.shutdown()
+            self._owns_rclpy = False
         self._status = "disconnected"
