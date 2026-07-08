@@ -27,10 +27,14 @@ spec:
           env:
             - name: LD_LIBRARY_PATH
               value: /isaac-sim/exts/isaacsim.ros2.bridge/jazzy/lib
+            - name: PYTHONPATH
+              value: /isaac-sim/exts/isaacsim.ros2.bridge/jazzy/rclpy:/isaac-sim/exts/isaacsim.ros2.bridge/jazzy/lib/python3.10/site-packages
           volumeMounts:
             - name: launch-script
               mountPath: /app
               readOnly: true
+            - name: kit-cache
+              mountPath: /isaac-sim/kit/cache
           resources:
             requests:
               cpu: "4"
@@ -42,3 +46,5 @@ spec:
         - name: launch-script
           configMap:
             name: isaac-lab-launch-script
+        - name: kit-cache
+          emptyDir: {}
