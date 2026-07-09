@@ -10,14 +10,20 @@ interface VisualizationPanelProps {
   connected: boolean;
 }
 
+function toRerunScheme(url: string): string {
+  if (url.startsWith('rerun+') || url.startsWith('rerun://')) return url;
+  return `rerun+${url}`;
+}
+
 function buildRerunUrl(viewerBase: string, grpcBase: string): string {
-  const grpcUrl = grpcBase.endsWith('/proxy') ? grpcBase : `${grpcBase}/proxy`;
+  const withProxy = grpcBase.endsWith('/proxy') ? grpcBase : `${grpcBase}/proxy`;
+  const grpcUrl = toRerunScheme(withProxy);
   return `${viewerBase}/?url=${encodeURIComponent(grpcUrl)}&hide_welcome_screen`;
 }
 
 function buildLocalRerunUrl(): string {
   const host = window.location.hostname;
-  return buildRerunUrl(`http://${host}:9090`, `rerun+http://${host}:9876/proxy`);
+  return buildRerunUrl(`http://${host}:9090`, `http://${host}:9876`);
 }
 
 const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ connected }) => {
