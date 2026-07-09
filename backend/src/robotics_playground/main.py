@@ -49,8 +49,11 @@ def health():
 
 @app.get("/api/config")
 def get_config():
-    ws_url = os.environ.get("WS_EXTERNAL_URL", "")
-    return {"wsUrl": ws_url}
+    return {
+        "wsUrl": os.environ.get("WS_EXTERNAL_URL", ""),
+        "rerunViewerUrl": os.environ.get("RERUN_VIEWER_URL", ""),
+        "rerunGrpcUrl": os.environ.get("RERUN_GRPC_URL", ""),
+    }
 
 
 @app.get("/api/models")

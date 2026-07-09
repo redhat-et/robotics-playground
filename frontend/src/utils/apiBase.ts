@@ -8,24 +8,35 @@ const isEmbedded = window.location.pathname.startsWith('/physicalAiStudio/');
 
 export const API_BASE = isEmbedded ? EMBEDDED_PREFIX : '';
 
-let _wsBase = '';
-let _wsBasePromise: Promise<string> | null = null;
+export interface BackendConfig {
+  wsUrl: string;
+  rerunViewerUrl: string;
+  rerunGrpcUrl: string;
+}
 
-function fetchWsBase(): Promise<string> {
-  if (!isEmbedded) return Promise.resolve('');
+const EMPTY_CONFIG: BackendConfig = { wsUrl: '', rerunViewerUrl: '', rerunGrpcUrl: '' };
+
+let _configPromise: Promise<BackendConfig> | null = null;
+
+function fetchConfig(): Promise<BackendConfig> {
   return fetch(`${API_BASE}/api/config`)
     .then((r) => r.json())
-    .then((data: { wsUrl?: string }) => {
-      _wsBase = data.wsUrl ?? '';
-      return _wsBase;
-    })
-    .catch(() => '');
+    .then((data: Partial<BackendConfig>) => ({
+      wsUrl: data.wsUrl ?? '',
+      rerunViewerUrl: data.rerunViewerUrl ?? '',
+      rerunGrpcUrl: data.rerunGrpcUrl ?? '',
+    }))
+    .catch(() => EMPTY_CONFIG);
+}
+
+export function getBackendConfig(): Promise<BackendConfig> {
+  if (!_configPromise) {
+    _configPromise = fetchConfig();
+  }
+  return _configPromise;
 }
 
 export function getWsBase(): Promise<string> {
   if (!isEmbedded) return Promise.resolve('');
-  if (!_wsBasePromise) {
-    _wsBasePromise = fetchWsBase();
-  }
-  return _wsBasePromise;
+  return getBackendConfig().then((c) => c.wsUrl);
 }
