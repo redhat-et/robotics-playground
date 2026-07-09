@@ -21,6 +21,7 @@ WORKDIR /app
 EXPOSE 8000 9876 9090
 
 ENV PLAYGROUND_CONFIG=/etc/robotics-playground/config.yaml
+ENV HOME=/tmp
 
 USER 1001
 
