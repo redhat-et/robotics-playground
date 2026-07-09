@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { API_BASE } from '../utils/apiBase';
+import { API_BASE, getWsBase } from '../utils/apiBase';
 
 export interface SessionState {
   state: string;
@@ -42,11 +42,13 @@ export function useSession(sessionId: string): UseSessionReturn {
     let reconnectTimer: ReturnType<typeof setTimeout>;
     let disposed = false;
 
-    function connect() {
+    async function connect() {
       if (disposed) return;
 
+      const wsBase = await getWsBase();
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const ws = new WebSocket(`${protocol}//${window.location.host}${API_BASE}/ws/sessions/${sessionId}`);
+      const wsHost = wsBase || `${protocol}//${window.location.host}${API_BASE}`;
+      const ws = new WebSocket(`${wsHost}/ws/sessions/${sessionId}`);
       wsRef.current = ws;
 
       ws.onopen = () => {

@@ -52,8 +52,13 @@ describe('useSession', () => {
     expect(result.current.connected).toBe(false);
   });
 
-  it('connects to WebSocket with correct URL', () => {
+  it('connects to WebSocket with correct URL', async () => {
     renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
     expect(MockWebSocket.instances).toHaveLength(1);
     expect(MockWebSocket.instances[0].url).toContain('/ws/sessions/test-session');
   });
@@ -211,8 +216,14 @@ describe('useSession', () => {
     expect(sent.speed).toBeUndefined();
   });
 
-  it('does not send when WebSocket is not open', () => {
+  it('does not send when WebSocket is not open', async () => {
     const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    MockWebSocket.instances[0].readyState = 0;
 
     act(() => {
       result.current.sendInstruction('wave');
