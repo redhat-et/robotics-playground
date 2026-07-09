@@ -18,3 +18,18 @@ def test_models_returns_list():
     assert "models" in data
     assert len(data["models"]) >= 1
     assert data["models"][0]["id"] == "dreamzero-v1"
+
+
+def test_config_returns_empty_ws_url_by_default():
+    client = TestClient(app)
+    response = client.get("/api/config")
+    assert response.status_code == 200
+    assert response.json() == {"wsUrl": ""}
+
+
+def test_config_returns_ws_url_from_env(monkeypatch):
+    monkeypatch.setenv("WS_EXTERNAL_URL", "wss://backend.example.com")
+    client = TestClient(app)
+    response = client.get("/api/config")
+    assert response.status_code == 200
+    assert response.json() == {"wsUrl": "wss://backend.example.com"}

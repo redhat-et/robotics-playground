@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -44,6 +45,12 @@ MODELS = [
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/config")
+def get_config():
+    ws_url = os.environ.get("WS_EXTERNAL_URL", "")
+    return {"wsUrl": ws_url}
 
 
 @app.get("/api/models")
