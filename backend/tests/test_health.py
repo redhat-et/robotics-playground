@@ -20,16 +20,22 @@ def test_models_returns_list():
     assert data["models"][0]["id"] == "dreamzero-v1"
 
 
-def test_config_returns_empty_ws_url_by_default():
+def test_config_returns_defaults():
     client = TestClient(app)
     response = client.get("/api/config")
     assert response.status_code == 200
-    assert response.json() == {"wsUrl": ""}
+    assert response.json() == {"wsUrl": "", "rerunViewerUrl": "", "rerunGrpcUrl": ""}
 
 
-def test_config_returns_ws_url_from_env(monkeypatch):
+def test_config_returns_urls_from_env(monkeypatch):
     monkeypatch.setenv("WS_EXTERNAL_URL", "wss://backend.example.com")
+    monkeypatch.setenv("RERUN_VIEWER_URL", "https://rerun-web.example.com")
+    monkeypatch.setenv("RERUN_GRPC_URL", "https://rerun-grpc.example.com")
     client = TestClient(app)
     response = client.get("/api/config")
     assert response.status_code == 200
-    assert response.json() == {"wsUrl": "wss://backend.example.com"}
+    assert response.json() == {
+        "wsUrl": "wss://backend.example.com",
+        "rerunViewerUrl": "https://rerun-web.example.com",
+        "rerunGrpcUrl": "https://rerun-grpc.example.com",
+    }
