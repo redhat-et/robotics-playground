@@ -8,3 +8,4 @@ resources:
   - backend-service.yaml
   - configmap.yaml
   - isaac-lab/
+  - fastdds-discovery/
