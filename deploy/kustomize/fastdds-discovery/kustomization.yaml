@@ -4,3 +4,10 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - service.yaml
+
+configMapGenerator:
+  - name: fastdds-client-config
+    files:
+      - fastdds-client.xml
+    options:
+      disableNameSuffixHash: true
