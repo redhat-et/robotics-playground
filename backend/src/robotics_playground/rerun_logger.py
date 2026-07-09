@@ -16,9 +16,11 @@ class RerunLogger:
         web_port: int = 9090,
         policy_index: int = 0,
         camera_names: list[str] | None = None,
+        cors_allow_origin: list[str] | None = None,
     ):
         self._port = port
         self._web_port = web_port
+        self._cors_allow_origin = cors_allow_origin
         self._prefix = f"session/policy_{policy_index}"
         self._camera_names = camera_names or ["exterior_1", "exterior_2", "wrist"]
         self._initialized = False
@@ -50,7 +52,10 @@ class RerunLogger:
         if self._initialized:
             return
         rr.init("robotics_playground")
-        server_uri = rr.serve_grpc(grpc_port=self._port)
+        server_uri = rr.serve_grpc(
+            grpc_port=self._port,
+            cors_allow_origin=self._cors_allow_origin,
+        )
         rr.serve_web_viewer(
             web_port=self._web_port,
             open_browser=False,

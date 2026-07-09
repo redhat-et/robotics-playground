@@ -19,10 +19,13 @@ config = load_config()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    rerun_viewer_url = os.environ.get("RERUN_VIEWER_URL", "")
+    cors_origins = [rerun_viewer_url] if rerun_viewer_url else None
     logger = RerunLogger(
         port=config.rerun.grpc_port,
         web_port=config.rerun.web_port,
         camera_names=list(config.ros2.cameras.keys()) or None,
+        cors_allow_origin=cors_origins,
     )
     logger.start()
     bridge = create_bridge(config)
