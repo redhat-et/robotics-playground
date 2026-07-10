@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+from typing import Protocol
+
+
+class PolicyClient(Protocol):
+    async def connect(self) -> None: ...
+
+    async def infer(self, obs: dict) -> dict: ...
+
+    async def reset(self) -> None: ...
+
+    async def close(self) -> None: ...
