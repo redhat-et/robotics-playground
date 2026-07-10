@@ -8,4 +8,10 @@ resources:
   - backend-service.yaml
   - configmap.yaml
   - isaac-lab/
-  - fastdds-discovery/
+
+configMapGenerator:
+  - name: zenoh-backend-config
+    files:
+      - config.json5=zenoh-backend-config.json5
+    options:
+      disableNameSuffixHash: true
