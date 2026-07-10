@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
 
@@ -39,10 +40,17 @@ class RerunLogger:
         return rrb.Blueprint(
             rrb.Vertical(
                 rrb.Horizontal(*camera_views),
-                rrb.TimeSeriesView(
-                    origin=f"{self._prefix}/joints",
-                    name="Joint Positions",
-                    plot_legend=rrb.PlotLegend(visible=False),
+                rrb.Horizontal(
+                    rrb.TimeSeriesView(
+                        origin=f"{self._prefix}/joints",
+                        name="Joint States",
+                        plot_legend=rrb.PlotLegend(visible=False),
+                    ),
+                    rrb.TimeSeriesView(
+                        origin=f"{self._prefix}/policy",
+                        name="Policy Output",
+                        plot_legend=rrb.PlotLegend(visible=False),
+                    ),
                 ),
                 row_shares=[7, 2],
             ),
@@ -96,3 +104,31 @@ class RerunLogger:
     def log_instruction(self, text: str, step: int):
         rr.set_time("step", sequence=self._step_offset + step)
         rr.log("session/instructions", rr.TextLog(text))
+
+    def log_raw_action_tensor(self, actions: np.ndarray, step: int):
+        rr.set_time("step", sequence=self._step_offset + step)
+        rr.log(f"{self._prefix}/policy/raw_output", rr.Tensor(actions))
+        for dim in range(actions.shape[1]):
+            rr.log(
+                f"{self._prefix}/policy/raw_output/dim_{dim}",
+                rr.Scalars(float(actions[0, dim])),
+            )
+
+    def log_inference_latency(self, latency_ms: float, step: int):
+        rr.set_time("step", sequence=self._step_offset + step)
+        rr.log(f"{self._prefix}/policy/inference_ms", rr.Scalars(latency_ms))
+
+    def log_action_trajectory(self, action_chunk: list[Action], step: int):
+        rr.set_time("step", sequence=self._step_offset + step)
+        if not action_chunk:
+            return
+        n_joints = len(action_chunk[0]["joint_velocities"])
+        for j in range(n_joints):
+            rr.log(
+                f"{self._prefix}/intent/joint_{j}_velocity",
+                rr.Scalars(action_chunk[0]["joint_velocities"][j]),
+            )
+        rr.log(
+            f"{self._prefix}/intent/gripper",
+            rr.Scalars(action_chunk[0]["gripper_position"]),
+        )

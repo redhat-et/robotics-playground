@@ -121,3 +121,39 @@ def test_clear_before_start_is_noop(mock_rr):
     logger = RerunLogger()
     logger.clear()
     mock_rr.log.assert_not_called()
+
+
+def test_log_raw_action_tensor_no_error(mock_rr):
+    from robotics_playground.rerun_logger import RerunLogger
+
+    logger = RerunLogger()
+    logger.start()
+    actions = np.zeros((10, 8), dtype=np.float32)
+    logger.log_raw_action_tensor(actions, step=0)
+
+
+def test_log_inference_latency_no_error(mock_rr):
+    from robotics_playground.rerun_logger import RerunLogger
+
+    logger = RerunLogger()
+    logger.start()
+    logger.log_inference_latency(42.5, step=0)
+
+
+def test_log_action_trajectory_no_error(mock_rr):
+    import math
+
+    from robotics_playground.bridges.protocol import Action
+    from robotics_playground.rerun_logger import RerunLogger
+
+    logger = RerunLogger()
+    logger.start()
+    chunk = [
+        Action(
+            joint_positions=[math.nan] * 7,
+            joint_velocities=[0.1 * i] * 7,
+            gripper_position=0.02,
+        )
+        for i in range(10)
+    ]
+    logger.log_action_trajectory(chunk, step=0)
