@@ -112,12 +112,47 @@ async def test_ros2_bridge_observation_from_callbacks(mock_rclpy):
 
 
 @pytest.mark.anyio
+async def test_ros2_bridge_get_observation(mock_rclpy):
+    from robotics_playground.bridges.protocol import Observation
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    config = ROS2Config(cameras={"wrist": "/cam/wrist"})
+    bridge = ROS2Bridge(config)
+    await bridge.start()
+
+    # Directly enqueue a test observation
+    image_data = np.zeros((240, 320, 3), dtype=np.uint8)
+    test_obs = Observation(
+        step=0,
+        cameras={"wrist": image_data},
+        joint_positions=[0.1, 0.2, 0.3],
+        joint_velocities=[0.01, 0.02, 0.03],
+    )
+    await bridge._obs_queue.put(test_obs)
+
+    obs = await bridge.get_observation()
+
+    assert obs is not None
+    assert "wrist" in obs["cameras"]
+    assert obs["joint_positions"] == [0.1, 0.2, 0.3]
+    assert obs["joint_velocities"] == [0.01, 0.02, 0.03]
+    await bridge.close()
+
+
+@pytest.mark.anyio
 async def test_ros2_bridge_send_action_without_start_is_noop(mock_rclpy):
     from robotics_playground.bridges.ros2_bridge import ROS2Bridge
     from robotics_playground.config import ROS2Config
 
     bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
-    await bridge.send_action({"joint_positions": [0.0] * 6})
+    await bridge.send_action(
+        {
+            "joint_positions": [0.0] * 6,
+            "joint_velocities": [0.0] * 6,
+            "gripper_position": 0.0,
+        }
+    )
 
 
 @pytest.mark.anyio
