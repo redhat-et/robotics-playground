@@ -11,6 +11,8 @@ from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 
 from robotics_playground.bridges import create_bridge
 from robotics_playground.config import load_config
+from robotics_playground.policy import create_policy
+from robotics_playground.policy.embodiment_adapter import EmbodimentAdapter
 from robotics_playground.rerun_logger import RerunLogger
 from robotics_playground.session import Session
 
@@ -29,7 +31,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     )
     logger.start()
     bridge = create_bridge(config)
-    session = Session(bridge=bridge, rerun_logger=logger)
+    policy = create_policy(config)
+    adapter = EmbodimentAdapter(config.policy.embodiment)
+    session = Session(
+        bridge=bridge,
+        policy=policy,
+        adapter=adapter,
+        rerun_logger=logger,
+    )
     app.state.rerun_logger = logger
     app.state.session = session
     try:
