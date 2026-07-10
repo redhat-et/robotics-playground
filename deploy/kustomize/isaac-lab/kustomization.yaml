@@ -4,3 +4,11 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - configmap.yaml
+  - service-zenoh.yaml
+
+configMapGenerator:
+  - name: zenoh-isaac-lab-config
+    files:
+      - config.json5=zenoh-config.json5
+    options:
+      disableNameSuffixHash: true

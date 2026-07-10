@@ -29,17 +29,9 @@ spec:
               value: /isaac-sim/exts/isaacsim.ros2.bridge/jazzy/lib
             - name: PYTHONPATH
               value: /isaac-sim/exts/isaacsim.ros2.bridge/jazzy/rclpy:/isaac-sim/exts/isaacsim.ros2.bridge/jazzy/lib/python3.10/site-packages
-            - name: ROS_DISCOVERY_SERVER
-              value: fastdds-discovery:11811
-            - name: FASTRTPS_DEFAULT_PROFILES_FILE
-              value: /workspace/isaaclab/docker/.ros/fastdds.xml
           volumeMounts:
             - name: launch-script
               mountPath: /app
-              readOnly: true
-            - name: fastdds-config
-              mountPath: /workspace/isaaclab/docker/.ros/fastdds.xml
-              subPath: fastdds-client.xml
               readOnly: true
             - name: kit-cache
               mountPath: /isaac-sim/kit/cache
@@ -50,12 +42,29 @@ spec:
             limits:
               nvidia.com/gpu: "1"
               memory: 32Gi
+        - name: zenoh-bridge
+          image: eclipse/zenoh-bridge-ros2dds:latest
+          args: ["-c", "/etc/zenoh/config.json5"]
+          ports:
+            - name: zenoh
+              containerPort: 7447
+              protocol: TCP
+          volumeMounts:
+            - name: zenoh-config
+              mountPath: /etc/zenoh
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
       volumes:
         - name: launch-script
           configMap:
             name: isaac-lab-launch-script
-        - name: fastdds-config
+        - name: zenoh-config
           configMap:
-            name: fastdds-client-config
+            name: zenoh-isaac-lab-config
         - name: kit-cache
           emptyDir: {}
