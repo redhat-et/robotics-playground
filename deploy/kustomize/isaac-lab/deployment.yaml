@@ -43,8 +43,11 @@ spec:
               nvidia.com/gpu: "1"
               memory: 32Gi
         - name: zenoh-bridge
-          image: eclipse/zenoh-bridge-ros2dds:latest
+          image: eclipse/zenoh-bridge-ros2dds:1.9.0
           args: ["-c", "/etc/zenoh/config.json5"]
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
           ports:
             - name: zenoh
               containerPort: 7447
