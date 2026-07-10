@@ -81,3 +81,22 @@ async def test_lockstep_session_pause_resume():
     session.resume()
     assert session.state == "running"
     await session.stop()
+
+
+@pytest.mark.anyio
+async def test_lockstep_session_consumes_observations():
+    adapter = EmbodimentAdapter(SIMPLE_CONFIG)
+    session = Session(
+        bridge=MockBridge(),
+        policy=MockClient(),
+        adapter=adapter,
+        rerun_logger=_make_mock_logger(),
+    )
+    await session.start()
+    await asyncio.sleep(0.5)
+    step_after_execution = session.step
+    await session.stop()
+
+    # MockBridge generates step counter in observations
+    # After executing action chunks, step should have advanced
+    assert step_after_execution > 0
