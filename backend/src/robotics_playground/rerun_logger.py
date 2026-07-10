@@ -45,6 +45,8 @@ class RerunLogger:
                 ),
                 row_shares=[7, 2],
             ),
+            auto_layout=False,
+            auto_views=False,
             collapse_panels=True,
         )
 
