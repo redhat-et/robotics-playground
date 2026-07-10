@@ -22,7 +22,8 @@ class RerunLogger:
         self._web_port = web_port
         self._cors_allow_origin = cors_allow_origin
         self._prefix = f"session/policy_{policy_index}"
-        self._camera_names = camera_names or ["exterior_1", "exterior_2", "wrist"]
+        names = camera_names or ["exterior_1", "exterior_2", "wrist"]
+        self._camera_names = sorted(names, key=lambda n: (n == "wrist", n))
         self._initialized = False
         self._step_offset = 0
         self._last_step = 0
@@ -54,8 +55,11 @@ class RerunLogger:
         if self._initialized:
             return
         rr.init("robotics_playground")
+        blueprint = self._build_blueprint()
         server_uri = rr.serve_grpc(
             grpc_port=self._port,
+            default_blueprint=blueprint,
+            server_memory_limit="512MiB",
             cors_allow_origin=self._cors_allow_origin,
         )
         rr.serve_web_viewer(
@@ -63,7 +67,7 @@ class RerunLogger:
             open_browser=False,
             connect_to=server_uri,
         )
-        rr.send_blueprint(self._build_blueprint())
+        rr.send_blueprint(blueprint)
         self._initialized = True
 
     def clear(self):
