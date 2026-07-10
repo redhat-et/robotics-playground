@@ -2,18 +2,27 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 from typing import TYPE_CHECKING
-
-from robotics_playground.mock_policy import predict_action
 
 if TYPE_CHECKING:
     from robotics_playground.bridges.protocol import RobotBridge
+    from robotics_playground.policy.embodiment_adapter import EmbodimentAdapter
+    from robotics_playground.policy.protocol import PolicyClient
     from robotics_playground.rerun_logger import RerunLogger
 
 
 class Session:
-    def __init__(self, bridge: RobotBridge, rerun_logger: RerunLogger):
+    def __init__(
+        self,
+        bridge: RobotBridge,
+        policy: PolicyClient,
+        adapter: EmbodimentAdapter,
+        rerun_logger: RerunLogger,
+    ):
         self._bridge = bridge
+        self._policy = policy
+        self._adapter = adapter
         self._logger = rerun_logger
         self._task: asyncio.Task | None = None
         self._instruction: str = ""
@@ -47,6 +56,7 @@ class Session:
             return
         self._paused.set()
         await self._bridge.start()
+        await self._policy.connect()
         self._state = "running"
         self._task = asyncio.create_task(self._run_loop())
 
@@ -59,6 +69,7 @@ class Session:
         with contextlib.suppress(asyncio.CancelledError):
             await self._task
         self._task = None
+        await self._policy.close()
         await self._bridge.close()
         self._state = "idle"
         self._step = 0
@@ -107,7 +118,8 @@ class Session:
 
     async def _run_loop(self):
         try:
-            async for obs in self._bridge.observation_stream():
+            while True:
+                # Wait for unpause
                 paused_future = asyncio.ensure_future(self._paused.wait())
                 step_future = asyncio.ensure_future(self._step_once.wait())
                 try:
@@ -125,16 +137,38 @@ class Session:
                 if stepping:
                     self._step_once.clear()
 
+                # Collect observation
+                obs = await self._bridge.get_observation()
                 self._step = obs["step"]
                 self._logger.log_observation(obs, obs["step"])
 
                 if self._instruction:
                     self._logger.log_instruction(self._instruction, obs["step"])
 
-                action = await predict_action(obs)
-                self._logger.log_action(action, obs["step"])
+                # Normalize and infer
+                openpi_obs = self._adapter.observation_to_openpi(obs, self._instruction)
+                t0 = time.monotonic()
+                raw_action = await self._policy.infer(openpi_obs)
+                inference_ms = (time.monotonic() - t0) * 1000
 
-                await self._bridge.send_action(action)
+                # Log ML debug path
+                self._logger.log_raw_action_tensor(raw_action["actions"], self._step)
+                self._logger.log_inference_latency(inference_ms, self._step)
+
+                # Denormalize
+                action_chunk = self._adapter.action_chunk_from_openpi(raw_action)
+
+                # Log physical trajectory path
+                self._logger.log_action_trajectory(action_chunk, self._step)
+
+                # Execute action chunk
+                for action in action_chunk:
+                    await self._bridge.send_action(action)
+                    await self._bridge.sim_control("step")
+                    self._step += 1
+
+                    if not self._paused.is_set() or stepping:
+                        break
 
                 if stepping:
                     self._paused.clear()
