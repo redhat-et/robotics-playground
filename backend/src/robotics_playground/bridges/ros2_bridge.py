@@ -133,6 +133,9 @@ class ROS2Bridge:
         self._latest_joint_velocities = velocities
         self._enqueue_observation()
 
+    async def get_observation(self) -> Observation:
+        return await self._obs_queue.get()
+
     async def observation_stream(self) -> AsyncIterator[Observation]:
         while True:
             obs = await self._obs_queue.get()
@@ -145,6 +148,7 @@ class ROS2Bridge:
 
         msg = JointState()
         msg.position = [float(p) for p in action["joint_positions"]]
+        msg.velocity = [float(v) for v in action["joint_velocities"]]
         self._publisher.publish(msg)
 
     async def sim_control(self, action: str, speed: float | None = None) -> None:
@@ -162,7 +166,7 @@ class ROS2Bridge:
 
         elif action == "step":
             req = self._StepSimulation.Request()
-            req.steps = 1
+            req.steps = self._config.physics_decimation
             if self._step_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
                     None, lambda: self._step_client.call(req)
