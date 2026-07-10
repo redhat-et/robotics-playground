@@ -30,6 +30,24 @@ class ROS2Config(BaseModel):
     joint_command_topic: str = "/joint_commands"
     set_sim_state_service: str = "/isaacsim/SetSimulationState"
     step_simulation_service: str = "/isaacsim/StepSimulation"
+    physics_decimation: int = 10
+
+
+class EmbodimentConfig(BaseModel):
+    joint_names: list[str] = []
+    training_order: list[str] = []
+    joint_limits: dict[str, list[float]] = {}
+    gripper_joint: str = ""
+    gripper_limits: list[float] = [0.0, 0.04]
+    camera_mapping: dict[str, str] = {}
+    image_size: list[int] = [224, 224]
+
+
+class PolicyConfig(BaseModel):
+    type: str = "mock"
+    endpoint: str = ""
+    model_name: str = "dreamzero"
+    embodiment: EmbodimentConfig = EmbodimentConfig()
 
 
 class PlaygroundConfig(BaseModel):
@@ -37,6 +55,7 @@ class PlaygroundConfig(BaseModel):
     rerun: RerunConfig = RerunConfig()
     bridge: BridgeConfig = BridgeConfig()
     ros2: ROS2Config = ROS2Config()
+    policy: PolicyConfig = PolicyConfig()
 
 
 def load_config(path: str | None = None) -> PlaygroundConfig:

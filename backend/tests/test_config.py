@@ -65,3 +65,48 @@ def test_ros2_config_defaults():
     assert config.ros2.cameras == {}
     assert config.ros2.joint_state_topic == "/joint_states"
     assert config.ros2.joint_command_topic == "/joint_commands"
+
+
+def test_policy_config_defaults():
+    from robotics_playground.config import PlaygroundConfig
+
+    config = PlaygroundConfig()
+    assert config.policy.type == "mock"
+    assert config.policy.endpoint == ""
+    assert config.policy.model_name == "dreamzero"
+    assert config.policy.embodiment.joint_names == []
+    assert config.policy.embodiment.image_size == [224, 224]
+    assert config.policy.embodiment.gripper_limits == [0.0, 0.04]
+
+
+def test_policy_config_from_dict():
+    from robotics_playground.config import PlaygroundConfig
+
+    data = {
+        "policy": {
+            "type": "openpi",
+            "endpoint": "ws://localhost:8080/v1/realtime/robot/openpi",
+            "embodiment": {
+                "joint_names": ["j1", "j2"],
+                "training_order": ["j2", "j1"],
+                "joint_limits": {"j1": [-1.0, 1.0], "j2": [-2.0, 2.0]},
+                "gripper_joint": "grip",
+                "camera_mapping": {"wrist": "observation/wrist_image_left"},
+            },
+        }
+    }
+    config = PlaygroundConfig(**data)
+    assert config.policy.type == "openpi"
+    assert config.policy.embodiment.joint_names == ["j1", "j2"]
+    assert config.policy.embodiment.training_order == ["j2", "j1"]
+    assert config.policy.embodiment.camera_mapping == {"wrist": "observation/wrist_image_left"}
+
+
+def test_ros2_config_physics_decimation():
+    from robotics_playground.config import PlaygroundConfig
+
+    config = PlaygroundConfig()
+    assert config.ros2.physics_decimation == 10
+
+    config2 = PlaygroundConfig(ros2={"physics_decimation": 5})
+    assert config2.ros2.physics_decimation == 5
