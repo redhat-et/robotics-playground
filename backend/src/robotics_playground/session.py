@@ -118,6 +118,9 @@ class Session:
 
     async def _run_loop(self):
         try:
+            # Initial observation
+            obs = await self._bridge.get_observation()
+
             while True:
                 # Wait for unpause
                 paused_future = asyncio.ensure_future(self._paused.wait())
@@ -137,8 +140,7 @@ class Session:
                 if stepping:
                     self._step_once.clear()
 
-                # Collect observation
-                obs = await self._bridge.get_observation()
+                # Log current observation
                 self._step = obs["step"]
                 self._logger.log_observation(obs, obs["step"])
 
@@ -161,11 +163,12 @@ class Session:
                 # Log physical trajectory path
                 self._logger.log_action_trajectory(action_chunk, self._step)
 
-                # Execute action chunk
+                # Execute action chunk and consume observations
                 for action in action_chunk:
                     await self._bridge.send_action(action)
                     await self._bridge.sim_control("step")
-                    self._step += 1
+                    obs = await self._bridge.get_observation()
+                    self._step = obs["step"]
 
                     if not self._paused.is_set() or stepping:
                         break

@@ -162,3 +162,32 @@ async def test_ros2_bridge_sim_control_without_start_is_noop(mock_rclpy):
 
     bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
     await bridge.sim_control("play")
+
+
+@pytest.mark.anyio
+async def test_ros2_bridge_send_action_publishes(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    mock_publisher = bridge._publisher
+    await bridge.send_action(
+        {
+            "joint_positions": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+            "joint_velocities": [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
+            "gripper_position": 0.8,
+        }
+    )
+
+    mock_publisher.publish.assert_called_once()
+    published_msg = mock_publisher.publish.call_args[0][0]
+    assert len(published_msg.position) == 8
+    assert published_msg.position[:7] == [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    assert published_msg.position[7] == 0.8
+    assert len(published_msg.velocity) == 8
+    assert published_msg.velocity[:7] == [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
+    assert str(published_msg.velocity[7]) == "nan"
+
+    await bridge.close()

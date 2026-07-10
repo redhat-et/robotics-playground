@@ -147,8 +147,10 @@ class ROS2Bridge:
         from sensor_msgs.msg import JointState
 
         msg = JointState()
-        msg.position = [float(p) for p in action["joint_positions"]]
-        msg.velocity = [float(v) for v in action["joint_velocities"]]
+        msg.position = [float(p) for p in action["joint_positions"]] + [
+            float(action["gripper_position"])
+        ]
+        msg.velocity = [float(v) for v in action["joint_velocities"]] + [float("nan")]
         self._publisher.publish(msg)
 
     async def sim_control(self, action: str, speed: float | None = None) -> None:
