@@ -19,8 +19,14 @@ def test_observation_type_shape():
 
 
 def test_action_type_shape():
-    act: Action = {"joint_positions": [0.0] * 7}
+    act: Action = {
+        "joint_positions": [float("nan")] * 7,
+        "joint_velocities": [0.0] * 7,
+        "gripper_position": 0.5,
+    }
     assert len(act["joint_positions"]) == 7
+    assert len(act["joint_velocities"]) == 7
+    assert isinstance(act["gripper_position"], float)
 
 
 @pytest.mark.anyio
@@ -46,12 +52,34 @@ async def test_mock_bridge_produces_observations():
 
 
 @pytest.mark.anyio
+async def test_mock_bridge_get_observation():
+    from robotics_playground.bridges.mock_bridge import MockBridge
+
+    bridge = MockBridge()
+    await bridge.start()
+    obs = await bridge.get_observation()
+    assert "cameras" in obs
+    assert "wrist" in obs["cameras"]
+    assert isinstance(obs["joint_positions"], list)
+    assert obs["step"] == 0
+    obs2 = await bridge.get_observation()
+    assert obs2["step"] == 1
+    await bridge.close()
+
+
+@pytest.mark.anyio
 async def test_mock_bridge_send_action_is_noop():
     from robotics_playground.bridges.mock_bridge import MockBridge
 
     bridge = MockBridge()
     await bridge.start()
-    await bridge.send_action({"joint_positions": [0.0] * 7})
+    await bridge.send_action(
+        {
+            "joint_positions": [float("nan")] * 7,
+            "joint_velocities": [0.0] * 7,
+            "gripper_position": 0.5,
+        }
+    )
     await bridge.close()
 
 

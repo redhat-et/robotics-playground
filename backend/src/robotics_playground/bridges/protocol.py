@@ -15,6 +15,8 @@ class Observation(TypedDict):
 
 class Action(TypedDict):
     joint_positions: list[float]
+    joint_velocities: list[float]
+    gripper_position: float
 
 
 class RobotBridge(Protocol):
@@ -22,6 +24,8 @@ class RobotBridge(Protocol):
     def bridge_status(self) -> str: ...
 
     async def start(self) -> None: ...
+
+    async def get_observation(self) -> Observation: ...
 
     def observation_stream(self) -> AsyncIterator[Observation]: ...
 
