@@ -51,8 +51,11 @@ spec:
             limits:
               memory: 512Mi
         - name: zenoh-bridge
-          image: eclipse/zenoh-bridge-ros2dds:latest
+          image: eclipse/zenoh-bridge-ros2dds:1.9.0
           args: ["-c", "/etc/zenoh/config.json5"]
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
           volumeMounts:
             - name: zenoh-config
               mountPath: /etc/zenoh
