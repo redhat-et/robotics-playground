@@ -80,8 +80,7 @@ class EmbodimentAdapter:
         result["prompt"] = instruction
         return result
 
-    def action_chunk_from_openpi(self, raw: dict) -> list[Action]:
-        actions_array = raw["actions"]  # (chunk_size, n_joints + 1)
+    def action_chunk_from_openpi(self, actions_array: np.ndarray) -> list[Action]:
         n_joints = len(self._config.joint_names)
         chunk_size = actions_array.shape[0]
 

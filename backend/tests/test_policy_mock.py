@@ -24,11 +24,10 @@ async def test_mock_client_infer_returns_action_chunk():
         "prompt": "pick up the block",
     }
     result = await client.infer(obs)
-    assert "actions" in result
-    assert isinstance(result["actions"], np.ndarray)
-    assert result["actions"].shape == (10, 8)
-    assert result["actions"].min() >= -1.0
-    assert result["actions"].max() <= 1.0
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (10, 8)
+    assert result.min() >= -1.0
+    assert result.max() <= 1.0
     await client.close()
 
 

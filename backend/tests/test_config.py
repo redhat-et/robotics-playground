@@ -75,7 +75,7 @@ def test_policy_config_defaults():
     assert config.policy.endpoint == ""
     assert config.policy.model_name == "dreamzero"
     assert config.policy.embodiment.joint_names == []
-    assert config.policy.embodiment.image_size == [224, 224]
+    assert config.policy.embodiment.image_size == [180, 320]
     assert config.policy.embodiment.gripper_limits == [0.0, 0.04]
 
 

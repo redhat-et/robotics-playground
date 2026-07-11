@@ -40,7 +40,7 @@ class EmbodimentConfig(BaseModel):
     gripper_joint: str = ""
     gripper_limits: list[float] = [0.0, 0.04]
     camera_mapping: dict[str, str] = {}
-    image_size: list[int] = [224, 224]
+    image_size: list[int] = [180, 320]
 
 
 class PolicyConfig(BaseModel):
