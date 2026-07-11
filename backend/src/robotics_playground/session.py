@@ -5,6 +5,8 @@ import contextlib
 import time
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 if TYPE_CHECKING:
     from robotics_playground.bridges.protocol import RobotBridge
     from robotics_playground.policy.embodiment_adapter import EmbodimentAdapter
@@ -153,12 +155,20 @@ class Session:
                 raw_action = await self._policy.infer(openpi_obs)
                 inference_ms = (time.monotonic() - t0) * 1000
 
+                # Normalize response: server may return a raw ndarray or a dict
+                if isinstance(raw_action, np.ndarray):
+                    actions_tensor = raw_action
+                elif isinstance(raw_action, dict):
+                    actions_tensor = raw_action.get("actions", next(iter(raw_action.values())))
+                else:
+                    actions_tensor = raw_action
+
                 # Log ML debug path
-                self._logger.log_raw_action_tensor(raw_action["actions"], self._step)
+                self._logger.log_raw_action_tensor(actions_tensor, self._step)
                 self._logger.log_inference_latency(inference_ms, self._step)
 
                 # Denormalize
-                action_chunk = self._adapter.action_chunk_from_openpi(raw_action)
+                action_chunk = self._adapter.action_chunk_from_openpi(actions_tensor)
 
                 # Log physical trajectory path
                 self._logger.log_action_trajectory(action_chunk, self._step)

@@ -108,8 +108,7 @@ def test_observation_joint_reorder():
 
 def test_action_chunk_from_openpi_shape():
     adapter = EmbodimentAdapter(FRANKA_CONFIG)
-    raw = {"actions": np.zeros((10, 8), dtype=np.float32)}
-    actions = adapter.action_chunk_from_openpi(raw)
+    actions = adapter.action_chunk_from_openpi(np.zeros((10, 8), dtype=np.float32))
     assert len(actions) == 10
     for a in actions:
         assert len(a["joint_positions"]) == 7
@@ -119,8 +118,7 @@ def test_action_chunk_from_openpi_shape():
 
 def test_action_chunk_nan_dispatch():
     adapter = EmbodimentAdapter(FRANKA_CONFIG)
-    raw = {"actions": np.zeros((10, 8), dtype=np.float32)}
-    actions = adapter.action_chunk_from_openpi(raw)
+    actions = adapter.action_chunk_from_openpi(np.zeros((10, 8), dtype=np.float32))
     for a in actions:
         # Arm joints: velocity has real values, position is NaN
         for i in range(7):
@@ -138,9 +136,7 @@ def test_action_denormalization_round_trip():
     # Construct action that "echoes" the normalized joint positions as velocities
     normalized_joints = openpi_obs["observation/joint_position"]
     action_row = np.concatenate([normalized_joints, np.array([0.5])])
-    raw = {"actions": np.tile(action_row, (10, 1)).astype(np.float32)}
-
-    actions = adapter.action_chunk_from_openpi(raw)
+    actions = adapter.action_chunk_from_openpi(np.tile(action_row, (10, 1)).astype(np.float32))
     # Verify denormalization produced physical-range values (not [-1, 1])
     for a in actions:
         for v in a["joint_velocities"]:
@@ -160,8 +156,7 @@ def test_action_reorder_inverse():
     adapter = EmbodimentAdapter(config)
     # Action in training order [c, a, b] = [0.3, 0.1, 0.2]
     action_row = np.array([0.3, 0.1, 0.2, 0.5], dtype=np.float32)
-    raw = {"actions": action_row.reshape(1, 4)}
-    actions = adapter.action_chunk_from_openpi(raw)
+    actions = adapter.action_chunk_from_openpi(action_row.reshape(1, 4))
     vels = actions[0]["joint_velocities"]
     # Should be reordered back to URDF [a, b, c]: denorm of [0.1, 0.2, 0.3]
     # With limits [-1, 1], denorm(x) = x * (1 - (-1)) / 2 = x (symmetric around 0, half-range=1)
