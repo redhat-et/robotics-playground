@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -17,6 +18,7 @@ from robotics_playground.rerun_logger import RerunLogger
 from robotics_playground.session import Session
 
 config = load_config()
+logging.basicConfig(level=getattr(logging, config.server.log_level.upper(), logging.INFO))
 
 
 @asynccontextmanager
