@@ -64,7 +64,7 @@ class RerunLogger:
             return
         rr.init("robotics_playground")
         blueprint = self._build_blueprint()
-        server_uri = rr.serve_grpc(
+        rr.serve_grpc(
             grpc_port=self._port,
             default_blueprint=blueprint,
             server_memory_limit="512MiB",
@@ -73,7 +73,6 @@ class RerunLogger:
         rr.serve_web_viewer(
             web_port=self._web_port,
             open_browser=False,
-            connect_to=server_uri,
         )
         rr.send_blueprint(blueprint)
         self._initialized = True
