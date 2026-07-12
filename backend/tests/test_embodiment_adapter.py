@@ -54,6 +54,7 @@ def test_observation_to_openpi_keys():
     assert "observation/joint_position" in result
     assert "observation/gripper_position" in result
     assert result["prompt"] == "pick up block"
+    assert result["session_id"] == "default"
 
 
 def test_observation_images_resized_to_224():
@@ -120,10 +121,10 @@ def test_action_chunk_nan_dispatch():
     adapter = EmbodimentAdapter(FRANKA_CONFIG)
     actions = adapter.action_chunk_from_openpi(np.zeros((10, 8), dtype=np.float32))
     for a in actions:
-        # Arm joints: velocity has real values, position is NaN
+        # Arm joints: position has real values, velocity is NaN
         for i in range(7):
-            assert math.isnan(a["joint_positions"][i])
-            assert not math.isnan(a["joint_velocities"][i])
+            assert not math.isnan(a["joint_positions"][i])
+            assert math.isnan(a["joint_velocities"][i])
         # Gripper: position has real value
         assert not math.isnan(a["gripper_position"])
 
@@ -133,14 +134,14 @@ def test_action_denormalization_round_trip():
     obs = _make_obs(positions=[0.0, 0.5, -1.0, -1.5, 1.0, 2.0, -0.5])
     openpi_obs = adapter.observation_to_openpi(obs, "")
 
-    # Construct action that "echoes" the normalized joint positions as velocities
+    # Construct action that "echoes" the normalized joint positions
     normalized_joints = openpi_obs["observation/joint_position"]
     action_row = np.concatenate([normalized_joints, np.array([0.5])])
     actions = adapter.action_chunk_from_openpi(np.tile(action_row, (10, 1)).astype(np.float32))
     # Verify denormalization produced physical-range values (not [-1, 1])
     for a in actions:
-        for v in a["joint_velocities"]:
-            assert not math.isnan(v)
+        for p in a["joint_positions"]:
+            assert not math.isnan(p)
 
 
 def test_action_reorder_inverse():
@@ -157,9 +158,6 @@ def test_action_reorder_inverse():
     # Action in training order [c, a, b] = [0.3, 0.1, 0.2]
     action_row = np.array([0.3, 0.1, 0.2, 0.5], dtype=np.float32)
     actions = adapter.action_chunk_from_openpi(action_row.reshape(1, 4))
-    vels = actions[0]["joint_velocities"]
+    positions = actions[0]["joint_positions"]
     # Should be reordered back to URDF [a, b, c]: denorm of [0.1, 0.2, 0.3]
-    # With limits [-1, 1], denorm(x) = x * (1 - (-1)) / 2 = x (symmetric around 0, half-range=1)
-    # Actually denorm from [-1,1] to velocity range — need to check what denorm means for velocities
-    # For now just verify the reorder happened: URDF index 0 (a) got training index 1 value
-    assert len(vels) == 3
+    assert len(positions) == 3
