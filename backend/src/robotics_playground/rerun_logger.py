@@ -50,6 +50,7 @@ class RerunLogger:
                         origin=f"{self._prefix}/policy",
                         name="Policy Output",
                         plot_legend=rrb.PlotLegend(visible=False),
+                        axis_y=rrb.ScalarAxis(range=(-1.0, 1.0), zoom_lock=True),
                     ),
                 ),
                 row_shares=[7, 2],
