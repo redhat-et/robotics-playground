@@ -20,6 +20,7 @@ class OpenPIClient:
     async def connect(self) -> None:
         self._ws, self._server_metadata = await asyncio.to_thread(self._connect_sync)
         logger.info("Connected to OpenPI server at %s", self._endpoint)
+        logger.info("Server metadata: %s", self._server_metadata)
 
     def _connect_sync(self) -> tuple:
         conn = websockets.sync.client.connect(

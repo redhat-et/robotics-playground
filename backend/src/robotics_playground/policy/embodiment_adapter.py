@@ -78,7 +78,7 @@ class EmbodimentAdapter:
         )
         result["observation/gripper_position"] = gripper_norm.astype(np.float32)
 
-        result["prompt"] = instruction
+        result["language"] = instruction
         result["session_id"] = self._session_id
         return result
 
