@@ -24,24 +24,6 @@ class EmbodimentAdapter:
         # Inverse: training order → URDF order
         self._act_reorder = [config.training_order.index(n) for n in config.joint_names]
 
-        # Joint limits as arrays in training order
-        n_joints = len(config.training_order)
-        self._joint_lower = np.zeros(n_joints, dtype=np.float64)
-        self._joint_upper = np.zeros(n_joints, dtype=np.float64)
-        for i, name in enumerate(config.training_order):
-            limits = config.joint_limits[name]
-            self._joint_lower[i] = limits[0]
-            self._joint_upper[i] = limits[1]
-
-        self._gripper_lower = config.gripper_limits[0]
-        self._gripper_upper = config.gripper_limits[1]
-
-    def _normalize(self, value: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> np.ndarray:
-        return 2.0 * (value - lower) / (upper - lower) - 1.0
-
-    def _denormalize(self, value: np.ndarray, lower: np.ndarray, upper: np.ndarray) -> np.ndarray:
-        return (value + 1.0) * (upper - lower) / 2.0 + lower
-
     def _resize_image(self, image: np.ndarray) -> np.ndarray:
         h, w = self._image_size
         pil_img = Image.fromarray(image)
@@ -60,25 +42,18 @@ class EmbodimentAdapter:
             if ros_name in obs["cameras"]:
                 result[openpi_key] = self._resize_image(obs["cameras"][ros_name])
 
-        # Reorder and normalize joint positions
+        # Reorder joint positions (raw radians — server normalizes internally)
         positions = np.array(obs["joint_positions"], dtype=np.float64)
         reordered = positions[self._obs_reorder]
-        result["observation/joint_position"] = self._normalize(
-            reordered, self._joint_lower, self._joint_upper
-        ).astype(np.float32)
+        result["observation/joint_position"] = reordered.astype(np.float32)
 
-        # Gripper — use last position if available, else 0
+        # Gripper — raw value, server normalizes internally
         gripper_val = 0.0
         if len(obs["joint_positions"]) > len(self._config.joint_names):
             gripper_val = obs["joint_positions"][len(self._config.joint_names)]
-        gripper_norm = self._normalize(
-            np.array([gripper_val]),
-            np.array([self._gripper_lower]),
-            np.array([self._gripper_upper]),
-        )
-        result["observation/gripper_position"] = gripper_norm.astype(np.float32)
+        result["observation/gripper_position"] = np.array([gripper_val], dtype=np.float32)
 
-        result["language"] = instruction
+        result["prompt"] = instruction
         result["session_id"] = self._session_id
         return result
 
@@ -89,27 +64,20 @@ class EmbodimentAdapter:
         result = []
         for i in range(chunk_size):
             row = actions_array[i]
-            pos_normalized = row[:n_joints].astype(np.float64)
-            gripper_normalized = float(row[n_joints]) if row.shape[0] > n_joints else 0.0
-
-            # Denormalize joint positions
-            pos_physical = self._denormalize(pos_normalized, self._joint_lower, self._joint_upper)
+            # Server returns absolute joint positions in radians (already
+            # denormalized and delta→absolute converted internally)
+            pos_physical = row[:n_joints].astype(np.float64)
 
             # Reorder from training order to URDF order
             pos_urdf = pos_physical[self._act_reorder]
 
-            # Denormalize gripper
-            gripper_physical = self._denormalize(
-                np.array([gripper_normalized]),
-                np.array([self._gripper_lower]),
-                np.array([self._gripper_upper]),
-            )[0]
+            gripper_physical = float(row[n_joints]) if row.shape[0] > n_joints else 0.0
 
             result.append(
                 Action(
                     joint_positions=pos_urdf.tolist(),
                     joint_velocities=[math.nan] * n_joints,
-                    gripper_position=float(gripper_physical),
+                    gripper_position=gripper_physical,
                 )
             )
 
