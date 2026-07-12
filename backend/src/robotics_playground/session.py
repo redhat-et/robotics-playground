@@ -159,6 +159,10 @@ class Session:
                     self._logger.log_instruction(self._instruction, obs["step"])
 
                 # Normalize and infer
+                logger.info(
+                    "Current joints: %s",
+                    [round(p, 4) for p in obs["joint_positions"][:7]],
+                )
                 openpi_obs = self._adapter.observation_to_openpi(obs, self._instruction)
                 logger.info(
                     "Calling policy.infer() at step %s, instruction=%r, obs_keys=%s",
@@ -190,6 +194,17 @@ class Session:
                 # Denormalize
                 action_chunk = self._adapter.action_chunk_from_openpi(actions_tensor)
                 logger.info("Action chunk: %d actions", len(action_chunk))
+                if action_chunk:
+                    a = action_chunk[0]
+                    logger.info(
+                        "First action: joints=%s, gripper=%.4f",
+                        [round(p, 4) for p in a["joint_positions"]],
+                        a["gripper_position"],
+                    )
+                    logger.info(
+                        "Raw tensor[0]: %s",
+                        np.array2string(actions_tensor[0], precision=4, suppress_small=True),
+                    )
 
                 # Log physical trajectory path
                 self._logger.log_action_trajectory(action_chunk, self._step)
