@@ -160,7 +160,12 @@ class Session:
 
                 # Normalize and infer
                 openpi_obs = self._adapter.observation_to_openpi(obs, self._instruction)
-                logger.info("Calling policy.infer() at step %s...", self._step)
+                logger.info(
+                    "Calling policy.infer() at step %s, instruction=%r, obs_keys=%s",
+                    self._step,
+                    self._instruction,
+                    list(openpi_obs.keys()),
+                )
                 t0 = time.monotonic()
                 raw_action = await self._policy.infer(openpi_obs)
                 inference_ms = (time.monotonic() - t0) * 1000
