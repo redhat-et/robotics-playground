@@ -53,7 +53,7 @@ def test_observation_to_openpi_keys():
     assert "observation/exterior_image_1_left" in result
     assert "observation/joint_position" in result
     assert "observation/gripper_position" in result
-    assert result["language"] == "pick up block"
+    assert result["prompt"] == "pick up block"
     assert result["session_id"] == "default"
 
 
@@ -69,17 +69,15 @@ def test_observation_images_resized_to_224():
         assert img.dtype == np.uint8
 
 
-def test_observation_joint_normalization():
+def test_observation_joint_passthrough():
     adapter = EmbodimentAdapter(FRANKA_CONFIG)
-    # j1 limits [-2, 2], position 0.0 -> normalized 0.0
-    # j2 limits [-1, 1], position 1.0 -> normalized 1.0
-    # j2 limits [-1, 1], position -1.0 -> normalized -1.0
     obs = _make_obs(positions=[0.0, 1.0, 0.0, -1.5, 0.0, 2.0, 0.0])
     result = adapter.observation_to_openpi(obs, "")
     joints = result["observation/joint_position"]
     assert joints.shape == (7,)
     assert abs(joints[0] - 0.0) < 1e-6
     assert abs(joints[1] - 1.0) < 1e-6
+    assert abs(joints[3] - (-1.5)) < 1e-6
 
 
 def test_observation_joint_reorder():
@@ -129,19 +127,13 @@ def test_action_chunk_nan_dispatch():
         assert not math.isnan(a["gripper_position"])
 
 
-def test_action_denormalization_round_trip():
+def test_action_passthrough():
     adapter = EmbodimentAdapter(FRANKA_CONFIG)
-    obs = _make_obs(positions=[0.0, 0.5, -1.0, -1.5, 1.0, 2.0, -0.5])
-    openpi_obs = adapter.observation_to_openpi(obs, "")
-
-    # Construct action that "echoes" the normalized joint positions
-    normalized_joints = openpi_obs["observation/joint_position"]
-    action_row = np.concatenate([normalized_joints, np.array([0.5])])
-    actions = adapter.action_chunk_from_openpi(np.tile(action_row, (10, 1)).astype(np.float32))
-    # Verify denormalization produced physical-range values (not [-1, 1])
+    action_row = np.array([0.1, 0.2, 0.3, -1.5, 1.0, 2.0, -0.5, 0.02], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(np.tile(action_row, (10, 1)))
     for a in actions:
-        for p in a["joint_positions"]:
-            assert not math.isnan(p)
+        assert abs(a["joint_positions"][0] - 0.1) < 1e-5
+        assert abs(a["gripper_position"] - 0.02) < 1e-5
 
 
 def test_action_reorder_inverse():
@@ -159,5 +151,8 @@ def test_action_reorder_inverse():
     action_row = np.array([0.3, 0.1, 0.2, 0.5], dtype=np.float32)
     actions = adapter.action_chunk_from_openpi(action_row.reshape(1, 4))
     positions = actions[0]["joint_positions"]
-    # Should be reordered back to URDF [a, b, c]: denorm of [0.1, 0.2, 0.3]
+    # Should be reordered back to URDF [a, b, c] = [0.1, 0.2, 0.3]
     assert len(positions) == 3
+    assert abs(positions[0] - 0.1) < 1e-5
+    assert abs(positions[1] - 0.2) < 1e-5
+    assert abs(positions[2] - 0.3) < 1e-5
