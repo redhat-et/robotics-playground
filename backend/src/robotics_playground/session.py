@@ -59,11 +59,14 @@ class Session:
     async def start(self):
         if self._task is not None:
             return
+        logger.info("Session starting: bridge.start()")
         self._paused.set()
         await self._bridge.start()
+        logger.info("Session starting: policy.connect()")
         await self._policy.connect()
         self._state = "running"
         self._task = asyncio.create_task(self._run_loop())
+        logger.info("Session started, run loop task created")
 
     async def stop(self):
         if self._task is None:
@@ -99,6 +102,7 @@ class Session:
         self._instruction = ""
 
     async def handle_sim_control(self, action: str, speed: float | None = None):
+        logger.info("handle_sim_control(%s), current state=%s", action, self._state)
         if action == "play":
             if self._state == "idle":
                 await self.start()
@@ -124,7 +128,9 @@ class Session:
     async def _run_loop(self):
         try:
             # Initial observation
+            logger.info("Run loop: waiting for first observation...")
             obs = await self._bridge.get_observation()
+            logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
 
             while True:
                 # Wait for unpause
@@ -154,9 +160,15 @@ class Session:
 
                 # Normalize and infer
                 openpi_obs = self._adapter.observation_to_openpi(obs, self._instruction)
+                logger.info("Calling policy.infer() at step %s...", self._step)
                 t0 = time.monotonic()
                 raw_action = await self._policy.infer(openpi_obs)
                 inference_ms = (time.monotonic() - t0) * 1000
+                logger.info(
+                    "Inference returned in %.1fms, type=%s",
+                    inference_ms,
+                    type(raw_action).__name__,
+                )
 
                 # Normalize response: server may return a raw ndarray or a dict
                 if isinstance(raw_action, np.ndarray):
@@ -172,6 +184,7 @@ class Session:
 
                 # Denormalize
                 action_chunk = self._adapter.action_chunk_from_openpi(actions_tensor)
+                logger.info("Action chunk: %d actions", len(action_chunk))
 
                 # Log physical trajectory path
                 self._logger.log_action_trajectory(action_chunk, self._step)
