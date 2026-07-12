@@ -14,9 +14,10 @@ if TYPE_CHECKING:
 
 
 class EmbodimentAdapter:
-    def __init__(self, config: EmbodimentConfig):
+    def __init__(self, config: EmbodimentConfig, session_id: str = "default"):
         self._config = config
         self._image_size = tuple(config.image_size)
+        self._session_id = session_id
 
         # Build reorder indices: URDF order → training order
         self._obs_reorder = [config.joint_names.index(n) for n in config.training_order]
@@ -78,6 +79,7 @@ class EmbodimentAdapter:
         result["observation/gripper_position"] = gripper_norm.astype(np.float32)
 
         result["prompt"] = instruction
+        result["session_id"] = self._session_id
         return result
 
     def action_chunk_from_openpi(self, actions_array: np.ndarray) -> list[Action]:
@@ -87,15 +89,14 @@ class EmbodimentAdapter:
         result = []
         for i in range(chunk_size):
             row = actions_array[i]
-            # Split: first n_joints are arm velocities, last is gripper
-            vel_normalized = row[:n_joints].astype(np.float64)
+            pos_normalized = row[:n_joints].astype(np.float64)
             gripper_normalized = float(row[n_joints]) if row.shape[0] > n_joints else 0.0
 
-            # Denormalize velocities
-            vel_physical = self._denormalize(vel_normalized, self._joint_lower, self._joint_upper)
+            # Denormalize joint positions
+            pos_physical = self._denormalize(pos_normalized, self._joint_lower, self._joint_upper)
 
             # Reorder from training order to URDF order
-            vel_urdf = vel_physical[self._act_reorder]
+            pos_urdf = pos_physical[self._act_reorder]
 
             # Denormalize gripper
             gripper_physical = self._denormalize(
@@ -104,11 +105,10 @@ class EmbodimentAdapter:
                 np.array([self._gripper_upper]),
             )[0]
 
-            # Build Action with NaN dispatch
             result.append(
                 Action(
-                    joint_positions=[math.nan] * n_joints,
-                    joint_velocities=vel_urdf.tolist(),
+                    joint_positions=pos_urdf.tolist(),
+                    joint_velocities=[math.nan] * n_joints,
                     gripper_position=float(gripper_physical),
                 )
             )
