@@ -6,6 +6,7 @@ images via rclpy.
 """
 
 import argparse
+import math
 import sys
 import threading
 
@@ -218,6 +219,23 @@ def main():
     for name, topic in CAMERA_TOPICS.items():
         cam_pubs[name] = node.create_publisher(Image, topic, 10)
 
+    # Lock protects target_joint_pos updates from the subscriber callback
+    target_lock = threading.Lock()
+
+    def joint_command_cb(msg):
+        nonlocal target_joint_pos
+        n_joints = len(joint_names)
+        if len(msg.position) < n_joints:
+            return
+        new_pos = list(msg.position[:n_joints])
+        for i, p in enumerate(new_pos):
+            if math.isnan(p):
+                new_pos[i] = float(target_joint_pos[0, i].item())
+        with target_lock:
+            target_joint_pos = torch.tensor([new_pos], dtype=torch.float32, device=sim.device)
+
+    node.create_subscription(JointState, "/joint_commands", joint_command_cb, 10)
+
     spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     spin_thread.start()
 
@@ -236,7 +254,9 @@ def main():
     sim_dt = sim.get_physics_dt()
     count = 0
     while simulation_app.is_running():
-        franka.set_joint_position_target(target_joint_pos)
+        with target_lock:
+            current_target = target_joint_pos
+        franka.set_joint_position_target(current_target)
         franka.write_data_to_sim()
         sim.step()
         franka.update(sim_dt)
