@@ -34,6 +34,8 @@ spec:
           env:
             - name: PLAYGROUND_CONFIG
               value: /etc/robotics-playground/config.yaml
+            - name: ROS_LOCALHOST_ONLY
+              value: "1"
           volumeMounts:
             - name: config
               mountPath: /etc/robotics-playground

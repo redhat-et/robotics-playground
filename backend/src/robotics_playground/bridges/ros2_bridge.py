@@ -105,10 +105,12 @@ class ROS2Bridge:
             executor.spin_once(timeout_sec=0.1)
 
     def _handle_image(self, camera_name: str, msg):
+        logger.debug("Image received: %s (%dx%d)", camera_name, msg.width, msg.height)
         data = np.frombuffer(msg.data, dtype=np.uint8).reshape(msg.height, msg.width, -1)
         self._on_image_received(camera_name, data)
 
     def _handle_joint_state(self, msg):
+        logger.debug("Joint state received: %d joints", len(msg.position))
         self._on_joint_state_received(list(msg.position), list(msg.velocity))
 
     def _enqueue_observation(self):
