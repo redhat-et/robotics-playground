@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import threading
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
@@ -12,6 +13,8 @@ from robotics_playground.bridges.protocol import Action, Observation
 
 if TYPE_CHECKING:
     from robotics_playground.config import ROS2Config
+
+logger = logging.getLogger(__name__)
 
 
 class ROS2Bridge:
@@ -153,6 +156,12 @@ class ROS2Bridge:
         msg.velocity = [float(v) for v in action["joint_velocities"]] + [float("nan")]
         self._publisher.publish(msg)
 
+    def _call_service(self, client, req):
+        if not client.wait_for_service(timeout_sec=1.0):
+            logger.debug("Service %s not available, skipping", client.srv_name)
+            return None
+        return client.call(req)
+
     async def sim_control(self, action: str, speed: float | None = None) -> None:
         if self._node is None:
             return
@@ -163,7 +172,7 @@ class ROS2Bridge:
             req.state.state = state_map[action]
             if self._sim_state_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: self._sim_state_client.call(req)
+                    None, lambda: self._call_service(self._sim_state_client, req)
                 )
 
         elif action == "step":
@@ -171,7 +180,7 @@ class ROS2Bridge:
             req.steps = self._config.physics_decimation
             if self._step_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: self._step_client.call(req)
+                    None, lambda: self._call_service(self._step_client, req)
                 )
 
         elif action == "reset":
@@ -179,7 +188,7 @@ class ROS2Bridge:
             req.state.state = 0
             if self._sim_state_client is not None:
                 await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: self._sim_state_client.call(req)
+                    None, lambda: self._call_service(self._sim_state_client, req)
                 )
 
     async def close(self) -> None:

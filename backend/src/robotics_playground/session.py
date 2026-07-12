@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import time
 from typing import TYPE_CHECKING
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from robotics_playground.bridges.protocol import RobotBridge
@@ -187,3 +190,6 @@ class Session:
                     self._paused.clear()
         except asyncio.CancelledError:
             raise
+        except Exception:
+            logger.exception("Run loop crashed")
+            self._state = "error"
