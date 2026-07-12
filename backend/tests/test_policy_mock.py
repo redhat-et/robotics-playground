@@ -21,7 +21,7 @@ async def test_mock_client_infer_returns_action_chunk():
         "observation/wrist_image_left": np.zeros((224, 224, 3), dtype=np.uint8),
         "observation/joint_position": np.zeros(7),
         "observation/gripper_position": np.zeros(1),
-        "prompt": "pick up the block",
+        "language": "pick up the block",
     }
     result = await client.infer(obs)
     assert isinstance(result, np.ndarray)

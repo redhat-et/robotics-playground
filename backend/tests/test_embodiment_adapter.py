@@ -53,7 +53,7 @@ def test_observation_to_openpi_keys():
     assert "observation/exterior_image_1_left" in result
     assert "observation/joint_position" in result
     assert "observation/gripper_position" in result
-    assert result["prompt"] == "pick up block"
+    assert result["language"] == "pick up block"
     assert result["session_id"] == "default"
 
 

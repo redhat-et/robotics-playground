@@ -25,7 +25,7 @@ async def test_openpi_client_connect_and_infer():
 
         obs = {
             "observation/joint_position": np.zeros(7, dtype=np.float32),
-            "prompt": "test",
+            "language": "test",
         }
         result = await client.infer(obs)
 
@@ -52,6 +52,6 @@ async def test_openpi_client_infer_raises_on_string_response():
         await client.connect()
 
         with pytest.raises(RuntimeError, match="Error in inference server"):
-            await client.infer({"prompt": "test"})
+            await client.infer({"language": "test"})
 
         await client.close()
