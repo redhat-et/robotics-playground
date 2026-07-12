@@ -234,10 +234,13 @@ data:
 
         def joint_command_cb(msg):
             nonlocal target_joint_pos
-            n_joints = len(joint_names)
-            if len(msg.position) < n_joints:
+            n_arm = 7
+            if len(msg.position) < n_arm:
                 return
-            new_pos = list(msg.position[:n_joints])
+            new_pos = list(msg.position[:n_arm])
+            # Duplicate single gripper value for both finger joints
+            gripper = msg.position[n_arm] if len(msg.position) > n_arm else float(target_joint_pos[0, n_arm].item())
+            new_pos.extend([gripper, gripper])
             for i, p in enumerate(new_pos):
                 if math.isnan(p):
                     new_pos[i] = float(target_joint_pos[0, i].item())
