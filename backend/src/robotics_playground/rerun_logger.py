@@ -10,6 +10,18 @@ if TYPE_CHECKING:
     from robotics_playground.bridges.protocol import Action, Observation
 
 
+PANDA_JOINT_LABELS = [
+    "shoulder_rot",
+    "shoulder_lift",
+    "elbow_rot",
+    "elbow_flex",
+    "wrist_rot",
+    "wrist_flex",
+    "wrist_roll",
+    "gripper",
+]
+
+
 class RerunLogger:
     def __init__(
         self,
@@ -37,6 +49,11 @@ class RerunLogger:
             )
             for name in self._camera_names
         ]
+        step_range = rrb.VisibleTimeRanges(
+            timeline="step",
+            start=rrb.TimeRangeBoundary.absolute(seq=0),
+            end=rrb.TimeRangeBoundary.infinite(),
+        )
         return rrb.Blueprint(
             rrb.Vertical(
                 rrb.Horizontal(*camera_views),
@@ -45,12 +62,14 @@ class RerunLogger:
                         origin=f"{self._prefix}/joints",
                         name="Joint States",
                         plot_legend=rrb.PlotLegend(visible=False),
+                        time_ranges=step_range,
                     ),
                     rrb.TimeSeriesView(
                         origin=f"{self._prefix}/policy",
                         name="Policy Output",
                         plot_legend=rrb.PlotLegend(visible=False),
                         axis_y=rrb.ScalarAxis(range=(-3.2, 3.8), zoom_lock=True),
+                        time_ranges=step_range,
                     ),
                 ),
                 row_shares=[7, 2],
@@ -94,7 +113,12 @@ class RerunLogger:
         for name, image in obs["cameras"].items():
             rr.log(f"{self._prefix}/camera/{name}", rr.Image(image))
         for i, pos in enumerate(obs["joint_positions"]):
-            rr.log(f"{self._prefix}/joints/joint_{i}", rr.Scalars(pos))
+            label = PANDA_JOINT_LABELS[i] if i < len(PANDA_JOINT_LABELS) else f"joint_{i}"
+            rr.log(
+                f"{self._prefix}/joints/{label}",
+                rr.Scalars(pos),
+                rr.SeriesLines(names=[label]),
+            )
 
     def log_action(self, action: Action, step: int):
         rr.set_time("step", sequence=self._step_offset + step)
@@ -109,9 +133,11 @@ class RerunLogger:
         rr.set_time("step", sequence=self._step_offset + step)
         rr.log(f"{self._prefix}/policy/raw_output", rr.Tensor(actions))
         for dim in range(actions.shape[1]):
+            label = PANDA_JOINT_LABELS[dim] if dim < len(PANDA_JOINT_LABELS) else f"dim_{dim}"
             rr.log(
-                f"{self._prefix}/policy/raw_output/dim_{dim}",
+                f"{self._prefix}/policy/raw_output/{label}",
                 rr.Scalars(float(actions[0, dim])),
+                rr.SeriesLines(names=[label]),
             )
 
     def log_inference_latency(self, latency_ms: float, step: int):
