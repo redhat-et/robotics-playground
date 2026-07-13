@@ -163,7 +163,12 @@ class Session:
             for _ in range(3):
                 await self._bridge.sim_control("reset")
             await self._bridge.sim_control("step")
-            obs = await self._bridge.get_observation()
+            try:
+                obs = await asyncio.wait_for(self._bridge.get_observation(), timeout=5.0)
+            except TimeoutError:
+                logger.error("No observation after teleport, aborting run loop")
+                self._state = "error"
+                return
             logger.info(
                 "Run loop: arm reset complete, joints: %s",
                 [round(p, 4) for p in obs.get("joint_positions", [])[:7]],
