@@ -22,17 +22,34 @@ logging.basicConfig(level=getattr(logging, config.server.log_level.upper(), logg
 logger = logging.getLogger(__name__)
 
 
-async def _observation_logger(bridge, rerun_logger: RerunLogger, stop_event: asyncio.Event):
-    """Stream observations from the bridge to Rerun continuously."""
+async def _observation_logger(
+    bridge,
+    session: Session,
+    rerun_logger: RerunLogger,
+    stop_event: asyncio.Event,
+):
+    """Preview-mode observation logger.
+
+    When the session is idle, steps the sim to render camera frames and logs
+    them to Rerun (~2 FPS).  When the session is running, the run loop owns
+    observation consumption, so this task yields.
+    """
     step = 0
     while not stop_event.is_set():
         try:
             if bridge.bridge_status != "connected":
                 await asyncio.sleep(0.5)
                 continue
+
+            if session.state in ("running", "paused"):
+                await asyncio.sleep(1.0)
+                continue
+
+            await bridge.sim_control("step")
             obs = await asyncio.wait_for(bridge.get_observation(), timeout=2.0)
             rerun_logger.log_observation(obs, step)
             step += 1
+            await asyncio.sleep(0.5)
         except TimeoutError:
             continue
         except asyncio.CancelledError:
@@ -69,7 +86,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     )
 
     stop_logger = asyncio.Event()
-    obs_logger_task = asyncio.create_task(_observation_logger(bridge, rerun_logger, stop_logger))
+    obs_logger_task = asyncio.create_task(
+        _observation_logger(bridge, session, rerun_logger, stop_logger)
+    )
 
     app.state.bridge = bridge
     app.state.rerun_logger = rerun_logger

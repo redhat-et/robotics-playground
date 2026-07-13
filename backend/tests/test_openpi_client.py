@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+import websockets.exceptions
 
 from robotics_playground.vendored import msgpack_numpy
 
@@ -53,5 +54,34 @@ async def test_openpi_client_infer_raises_on_string_response():
 
         with pytest.raises(RuntimeError, match="Error in inference server"):
             await client.infer({"prompt": "test"})
+
+        await client.close()
+
+
+@pytest.mark.anyio
+async def test_openpi_client_reconnects_on_closed_connection():
+    from robotics_playground.policy.openpi_client import OpenPIClient
+
+    mock_ws_initial = MagicMock()
+    mock_ws_reconnected = MagicMock()
+
+    mock_ws_initial.recv.return_value = msgpack_numpy.packb({"model": "dreamzero"})
+    mock_ws_initial.send.side_effect = websockets.exceptions.ConnectionClosedOK(None, None)
+
+    mock_ws_reconnected.recv.side_effect = [
+        msgpack_numpy.packb({"model": "dreamzero"}),
+        msgpack_numpy.packb({"actions": np.zeros((10, 8), dtype=np.float32)}),
+    ]
+
+    connect_calls = iter([mock_ws_initial, mock_ws_reconnected])
+
+    with patch("websockets.sync.client.connect", side_effect=connect_calls):
+        client = OpenPIClient("ws://localhost:8080/v1/realtime/robot/openpi")
+        await client.connect()
+
+        result = await client.infer({"prompt": "test"})
+        assert "actions" in result
+        assert result["actions"].shape == (10, 8)
+        mock_ws_reconnected.send.assert_called_once()
 
         await client.close()
