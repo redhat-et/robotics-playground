@@ -7,6 +7,18 @@ rerun:
   grpc_port: 9876
   web_port: 9090
 
+ros2:
+  default_joint_positions:
+    - 0.0444
+    - -0.1894
+    - -0.1107
+    - -2.5148
+    - 0.0044
+    - 2.3775
+    - 0.6952
+    - 0.04
+    - 0.04
+
 bridge:
   type: "mock"
 

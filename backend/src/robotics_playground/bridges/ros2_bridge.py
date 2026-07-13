@@ -186,12 +186,13 @@ class ROS2Bridge:
                 )
 
         elif action == "reset":
-            req = self._SetSimulationState.Request()
-            req.state.state = 0
-            if self._sim_state_client is not None:
-                await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: self._call_service(self._sim_state_client, req)
-                )
+            if self._config.default_joint_positions and self._publisher is not None:
+                from sensor_msgs.msg import JointState
+
+                msg = JointState()
+                msg.position = [float(p) for p in self._config.default_joint_positions]
+                self._publisher.publish(msg)
+            self._step = 0
 
     async def close(self) -> None:
         if self._executor is not None:
