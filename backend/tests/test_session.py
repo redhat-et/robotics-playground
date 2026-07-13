@@ -9,7 +9,7 @@ from robotics_playground.bridges.mock_bridge import MockBridge
 from robotics_playground.config import EmbodimentConfig
 from robotics_playground.policy.embodiment_adapter import EmbodimentAdapter
 from robotics_playground.policy.mock_client import MockClient
-from robotics_playground.session import Session
+from robotics_playground.session import DEFAULT_INSTRUCTION, Session
 
 _SIMPLE_CONFIG = EmbodimentConfig(
     joint_names=["j1", "j2", "j3", "j4", "j5", "j6"],
@@ -42,7 +42,7 @@ def test_session_initial_state():
     )
     assert session.state == "idle"
     assert session.step == 0
-    assert session.instruction == ""
+    assert session.instruction == DEFAULT_INSTRUCTION
 
 
 def test_send_instruction_stores_text():
@@ -124,7 +124,7 @@ async def test_reset_clears_state():
     session.send_instruction("pick up block")
     await session.reset()
     assert session.state == "idle"
-    assert session.instruction == ""
+    assert session.instruction == DEFAULT_INSTRUCTION
 
 
 @pytest.mark.anyio
