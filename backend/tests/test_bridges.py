@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import numpy as np
 import pytest
 
@@ -97,14 +99,15 @@ async def test_mock_bridge_sim_control_is_noop():
 
 
 @pytest.mark.anyio
-async def test_mock_bridge_status_is_mock():
+async def test_mock_bridge_status_lifecycle():
     from robotics_playground.bridges.mock_bridge import MockBridge
 
     bridge = MockBridge()
     assert bridge.bridge_status == "mock"
     await bridge.start()
-    assert bridge.bridge_status == "mock"
+    assert bridge.bridge_status == "connected"
     await bridge.close()
+    assert bridge.bridge_status == "disconnected"
 
 
 @pytest.mark.anyio
@@ -130,6 +133,44 @@ async def test_mock_bridge_output_is_deterministic():
         if idx >= 3:
             break
     await bridge2.close()
+
+
+@pytest.mark.anyio
+async def test_mock_bridge_disconnect_blocks_observations():
+    from robotics_playground.bridges.mock_bridge import MockBridge
+
+    bridge = MockBridge()
+    await bridge.start()
+    assert bridge.bridge_status == "connected"
+
+    obs = await bridge.get_observation()
+    assert obs["step"] == 0
+
+    bridge.simulate_disconnect()
+    assert bridge.bridge_status == "disconnected"
+
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(bridge.get_observation(), timeout=0.1)
+
+    bridge.simulate_reconnect()
+    assert bridge.bridge_status == "connected"
+
+    obs = await bridge.get_observation()
+    assert obs["step"] == 1
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_mock_bridge_tracks_sim_control_calls():
+    from robotics_playground.bridges.mock_bridge import MockBridge
+
+    bridge = MockBridge()
+    await bridge.start()
+    await bridge.sim_control("play")
+    await bridge.sim_control("reset")
+    await bridge.sim_control("step", speed=2.0)
+    assert bridge.sim_control_calls == [("play", None), ("reset", None), ("step", 2.0)]
+    await bridge.close()
 
 
 @pytest.mark.anyio

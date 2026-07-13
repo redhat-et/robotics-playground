@@ -61,10 +61,8 @@ class Session:
     async def start(self):
         if self._task is not None:
             return
-        logger.info("Session starting: bridge.start()")
-        self._paused.set()
-        await self._bridge.start()
         logger.info("Session starting: policy.connect()")
+        self._paused.set()
         await self._policy.connect()
         self._state = "running"
         self._task = asyncio.create_task(self._run_loop())
@@ -80,7 +78,6 @@ class Session:
             await self._task
         self._task = None
         await self._policy.close()
-        await self._bridge.close()
         self._state = "idle"
         self._step = 0
 
@@ -100,6 +97,7 @@ class Session:
 
     async def reset(self):
         await self.stop()
+        await self._bridge.sim_control("reset")
         self._logger.clear()
         self._instruction = ""
 
@@ -121,7 +119,6 @@ class Session:
             await self._bridge.sim_control("step")
             self.step_once()
         elif action == "reset":
-            await self._bridge.sim_control("reset")
             await self.reset()
 
     async def _run_loop(self):

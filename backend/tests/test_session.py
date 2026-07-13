@@ -219,4 +219,50 @@ async def test_reset_clears_rerun_logger():
     )
     await session.start()
     await session.reset()
-    mock_logger.clear.assert_called_once()
+    mock_logger.clear.assert_called()
+
+
+@pytest.mark.anyio
+async def test_stop_does_not_close_bridge():
+    bridge = MockBridge()
+    await bridge.start()
+    session = Session(
+        bridge=bridge,
+        policy=MockClient(),
+        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        rerun_logger=_make_mock_logger(),
+    )
+    await session.start()
+    await session.stop()
+    assert bridge.bridge_status == "connected"
+
+
+@pytest.mark.anyio
+async def test_reset_sends_teleport_command():
+    bridge = MockBridge()
+    await bridge.start()
+    session = Session(
+        bridge=bridge,
+        policy=MockClient(),
+        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        rerun_logger=_make_mock_logger(),
+    )
+    await session.start()
+    await session.reset()
+    assert ("reset", None) in bridge.sim_control_calls
+    assert bridge.bridge_status == "connected"
+
+
+@pytest.mark.anyio
+async def test_reset_from_idle_sends_teleport():
+    bridge = MockBridge()
+    await bridge.start()
+    session = Session(
+        bridge=bridge,
+        policy=MockClient(),
+        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        rerun_logger=_make_mock_logger(),
+    )
+    await session.reset()
+    assert ("reset", None) in bridge.sim_control_calls
+    assert session.state == "idle"

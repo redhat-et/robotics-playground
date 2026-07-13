@@ -90,6 +90,7 @@ const SimulationControlPanel: React.FC<SimulationControlPanelProps> = ({
             variant="secondary"
             size="sm"
             onClick={() => onSimControl('reset')}
+            isDisabled={bridgeStatus !== 'connected'}
           >
             Reset
           </Button>
