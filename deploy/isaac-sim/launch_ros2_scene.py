@@ -266,14 +266,7 @@ def main():
     teleport_requested = threading.Event()
 
     def teleport_cb(msg):
-        nonlocal target_joint_pos
-        with target_lock:
-            target_joint_pos = init_pos.clone()
-        franka.write_joint_state_to_sim(init_pos, torch.zeros_like(init_pos))
-        franka.update(sim_dt)
         teleport_requested.set()
-        sys.stdout.write("[INFO] Teleported arm to home position\n")
-        sys.stdout.flush()
 
     node.create_subscription(Int32, "/sim_control/state", sim_state_cb, 10)
     node.create_subscription(Int32, "/sim_control/step", step_cb, 10)
@@ -297,6 +290,15 @@ def main():
     sim_dt = sim.get_physics_dt()
     count = 0
     while simulation_app.is_running():
+        if teleport_requested.is_set():
+            teleport_requested.clear()
+            with target_lock:
+                target_joint_pos = init_pos.clone()
+            franka.write_joint_state_to_sim(init_pos, torch.zeros_like(init_pos))
+            franka.update(sim_dt)
+            sys.stdout.write("[INFO] Teleported arm to home position\n")
+            sys.stdout.flush()
+
         # Wait for play or explicit step request
         if not sim_playing.is_set():
             if not steps_requested.wait(timeout=0.1):
