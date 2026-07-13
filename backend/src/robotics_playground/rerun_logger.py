@@ -108,12 +108,13 @@ class RerunLogger:
             self._step_offset = clear_step + 1
             self._last_step = 0
 
-    def log_observation(self, obs: Observation, step: int):
+    def log_observation(self, obs: Observation, step: int, *, cameras: bool = True):
         effective_step = self._step_offset + step
         self._last_step = step
         rr.set_time("step", sequence=effective_step)
-        for name, image in obs["cameras"].items():
-            rr.log(f"{self._prefix}/camera/{name}", rr.Image(image))
+        if cameras:
+            for name, image in obs["cameras"].items():
+                rr.log(f"{self._prefix}/camera/{name}", rr.Image(image))
         for i, pos in enumerate(obs["joint_positions"]):
             label = PANDA_JOINT_LABELS[i] if i < len(PANDA_JOINT_LABELS) else f"joint_{i}"
             rr.log(
@@ -133,7 +134,6 @@ class RerunLogger:
 
     def log_raw_action_tensor(self, actions: np.ndarray, step: int):
         rr.set_time("step", sequence=self._step_offset + step)
-        rr.log(f"{self._prefix}/policy/raw_output", rr.Tensor(actions))
         for dim in range(actions.shape[1]):
             label = PANDA_JOINT_LABELS[dim] if dim < len(PANDA_JOINT_LABELS) else f"dim_{dim}"
             rr.log(
