@@ -47,6 +47,7 @@ class PolicyConfig(BaseModel):
     type: str = "mock"
     endpoint: str = ""
     model_name: str = "dreamzero"
+    action_horizon: int = 4
     embodiment: EmbodimentConfig = EmbodimentConfig()
 
 

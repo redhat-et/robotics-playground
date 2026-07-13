@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         policy=policy,
         adapter=adapter,
         rerun_logger=logger,
+        action_horizon=config.policy.action_horizon,
     )
     app.state.rerun_logger = logger
     app.state.session = session
