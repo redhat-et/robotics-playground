@@ -31,6 +31,7 @@ class ROS2Config(BaseModel):
     set_sim_state_service: str = "/isaacsim/SetSimulationState"
     step_simulation_service: str = "/isaacsim/StepSimulation"
     physics_decimation: int = 10
+    default_joint_positions: list[float] = []
 
 
 class EmbodimentConfig(BaseModel):
