@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ServerConfig(BaseModel):
@@ -48,7 +48,7 @@ class PolicyConfig(BaseModel):
     type: str = "mock"
     endpoint: str = ""
     model_name: str = "dreamzero"
-    action_horizon: int = 4
+    action_horizon: int = Field(default=4, gt=0)
     embodiment: EmbodimentConfig = EmbodimentConfig()
 
 
