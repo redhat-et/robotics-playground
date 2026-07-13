@@ -155,10 +155,14 @@ class Session:
                     return
             logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
 
-            # Reset arm to manipulation-ready pose after Zenoh routes are up
+            # Reset arm to manipulation-ready pose after Zenoh routes are up.
+            # Re-send reset command periodically — a single publish can be
+            # lost or arrive after some steps already ran.
             logger.info("Run loop: resetting arm to home position...")
-            await self._bridge.sim_control("reset")
-            for _ in range(100):
+            reset_steps = 500
+            for i in range(reset_steps):
+                if i % 50 == 0:
+                    await self._bridge.sim_control("reset")
                 await self._bridge.sim_control("step")
             obs = await self._bridge.get_observation()
             logger.info(
