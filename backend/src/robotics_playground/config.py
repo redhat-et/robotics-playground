@@ -28,8 +28,6 @@ class ROS2Config(BaseModel):
     cameras: dict[str, str] = {}
     joint_state_topic: str = "/joint_states"
     joint_command_topic: str = "/joint_commands"
-    set_sim_state_service: str = "/isaacsim/SetSimulationState"
-    step_simulation_service: str = "/isaacsim/StepSimulation"
     physics_decimation: int = 10
     default_joint_positions: list[float] = []
 

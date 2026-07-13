@@ -28,8 +28,8 @@ def mock_rclpy():
         "rclpy.qos": MagicMock(),
         "sensor_msgs": MagicMock(),
         "sensor_msgs.msg": MagicMock(),
-        "simulation_interfaces": MagicMock(),
-        "simulation_interfaces.srv": MagicMock(),
+        "std_msgs": MagicMock(),
+        "std_msgs.msg": MagicMock(),
     }
 
     with patch.dict("sys.modules", mocks):
