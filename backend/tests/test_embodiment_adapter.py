@@ -26,7 +26,7 @@ FRANKA_CONFIG = EmbodimentConfig(
         "wrist": "observation/wrist_image_left",
         "exterior_1": "observation/exterior_image_1_left",
     },
-    image_size=[224, 224],
+    image_size=[180, 320],
 )
 
 
@@ -57,15 +57,13 @@ def test_observation_to_openpi_keys():
     assert result["session_id"] == "default"
 
 
-def test_observation_images_resized_to_224():
+def test_observation_images_resized():
     adapter = EmbodimentAdapter(FRANKA_CONFIG)
     obs = _make_obs()
     result = adapter.observation_to_openpi(obs, "")
     for key in ["observation/wrist_image_left", "observation/exterior_image_1_left"]:
         img = result[key]
-        assert img.shape[0] == 224
-        assert img.shape[1] == 224
-        assert img.shape[2] == 3
+        assert img.shape == (180, 320, 3)
         assert img.dtype == np.uint8
 
 

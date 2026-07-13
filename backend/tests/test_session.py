@@ -18,7 +18,7 @@ _SIMPLE_CONFIG = EmbodimentConfig(
     gripper_joint="g",
     gripper_limits=[0, 1],
     camera_mapping={"wrist": "observation/wrist_image_left"},
-    image_size=[224, 224],
+    image_size=[180, 320],
 )
 
 

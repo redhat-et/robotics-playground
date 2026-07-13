@@ -1,4 +1,8 @@
-"""numpy array support for msgpack. Adapted from openpi-client (Apache 2.0)."""
+"""numpy array support for msgpack.
+
+Uses the vLLM-Omni wire format (nd/type/kind markers), which differs from
+the original openpi-client format (__ndarray__/dtype markers).
+"""
 
 from __future__ import annotations
 
