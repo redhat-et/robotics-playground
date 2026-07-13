@@ -213,7 +213,8 @@ def main():
         targets=torch.tensor([[0.3, 0.0, 1.1]], device=device),
     )
 
-    # rclpy.init() already called by isaacsim.ros2.bridge extension
+    if not rclpy.ok():
+        rclpy.init()
     node = rclpy.create_node("isaac_sim_bridge")
     joint_pub = node.create_publisher(JointState, "/joint_states", 10)
     clock_pub = node.create_publisher(Clock, "/clock", 10)
