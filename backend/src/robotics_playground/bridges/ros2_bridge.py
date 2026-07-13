@@ -81,6 +81,7 @@ class ROS2Bridge:
         self._Int32 = Int32
         self._sim_state_pub = self._node.create_publisher(Int32, "/sim_control/state", 10)
         self._step_pub = self._node.create_publisher(Int32, "/sim_control/step", 10)
+        self._teleport_pub = self._node.create_publisher(Int32, "/sim_control/teleport", 10)
 
         self._spin_thread = threading.Thread(target=self._spin, daemon=True)
         self._spin_thread.start()
@@ -166,12 +167,10 @@ class ROS2Bridge:
                 self._step_pub.publish(msg)
 
         elif action == "reset":
-            if self._config.default_joint_positions and self._publisher is not None:
-                from sensor_msgs.msg import JointState
-
-                msg = JointState()
-                msg.position = [float(p) for p in self._config.default_joint_positions]
-                self._publisher.publish(msg)
+            if self._teleport_pub is not None:
+                msg = self._Int32()
+                msg.data = 1
+                self._teleport_pub.publish(msg)
             self._step = 0
 
     async def close(self) -> None:

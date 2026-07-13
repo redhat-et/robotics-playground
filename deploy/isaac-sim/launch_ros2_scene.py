@@ -263,8 +263,21 @@ def main():
             pending_steps[0] += msg.data
         steps_requested.set()
 
+    teleport_requested = threading.Event()
+
+    def teleport_cb(msg):
+        nonlocal target_joint_pos
+        with target_lock:
+            target_joint_pos = init_pos.clone()
+        franka.write_joint_state_to_sim(init_pos, torch.zeros_like(init_pos))
+        franka.update(sim_dt)
+        teleport_requested.set()
+        sys.stdout.write("[INFO] Teleported arm to home position\n")
+        sys.stdout.flush()
+
     node.create_subscription(Int32, "/sim_control/state", sim_state_cb, 10)
     node.create_subscription(Int32, "/sim_control/step", step_cb, 10)
+    node.create_subscription(Int32, "/sim_control/teleport", teleport_cb, 10)
 
     spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     spin_thread.start()
