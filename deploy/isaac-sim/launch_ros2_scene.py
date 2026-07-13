@@ -243,31 +243,28 @@ def main():
     node.create_subscription(JointState, "/joint_commands", joint_command_cb, 10)
 
     # Sim control: step-only mode — sim only advances when explicitly stepped
+    # Uses std_msgs/Int32 topics instead of custom services so both sides
+    # work without compiled simulation_interfaces IDL.
+    from std_msgs.msg import Int32
+
     sim_playing = threading.Event()
     steps_requested = threading.Event()
     pending_steps = [0]
     steps_lock = threading.Lock()
 
-    from simulation_interfaces.srv import SetSimulationState, StepSimulation
-
-    def set_sim_state_cb(request, response):
-        state = request.state.state
-        if state == 1:  # play
+    def sim_state_cb(msg):
+        if msg.data == 1:  # play
             sim_playing.set()
         else:  # stop (0) or pause (2)
             sim_playing.clear()
-        response.success = True
-        return response
 
-    def step_sim_cb(request, response):
+    def step_cb(msg):
         with steps_lock:
-            pending_steps[0] += request.steps
+            pending_steps[0] += msg.data
         steps_requested.set()
-        response.success = True
-        return response
 
-    node.create_service(SetSimulationState, "/isaacsim/SetSimulationState", set_sim_state_cb)
-    node.create_service(StepSimulation, "/isaacsim/StepSimulation", step_sim_cb)
+    node.create_subscription(Int32, "/sim_control/state", sim_state_cb, 10)
+    node.create_subscription(Int32, "/sim_control/step", step_cb, 10)
 
     spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     spin_thread.start()

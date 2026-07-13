@@ -32,8 +32,8 @@ class ROS2Bridge:
         self._status = "disconnected"
         self._publisher = None
         self._owns_rclpy = False
-        self._sim_state_client = None
-        self._step_client = None
+        self._sim_state_pub = None
+        self._step_pub = None
 
     @property
     def bridge_status(self) -> str:
@@ -76,25 +76,11 @@ class ROS2Bridge:
             10,
         )
 
-        try:
-            from simulation_interfaces.srv import SetSimulationState, StepSimulation
+        from std_msgs.msg import Int32
 
-            self._SetSimulationState = SetSimulationState
-            self._StepSimulation = StepSimulation
-            self._sim_state_client = self._node.create_client(
-                SetSimulationState, self._config.set_sim_state_service
-            )
-            self._step_client = self._node.create_client(
-                StepSimulation, self._config.step_simulation_service
-            )
-        except (ImportError, AttributeError):
-            from robotics_playground.vendored.simulation_interfaces.srv import (
-                SetSimulationState,
-                StepSimulation,
-            )
-
-            self._SetSimulationState = SetSimulationState
-            self._StepSimulation = StepSimulation
+        self._Int32 = Int32
+        self._sim_state_pub = self._node.create_publisher(Int32, "/sim_control/state", 10)
+        self._step_pub = self._node.create_publisher(Int32, "/sim_control/step", 10)
 
         self._spin_thread = threading.Thread(target=self._spin, daemon=True)
         self._spin_thread.start()
@@ -162,32 +148,22 @@ class ROS2Bridge:
         msg.velocity = [float(v) for v in action["joint_velocities"]] + [float("nan")]
         self._publisher.publish(msg)
 
-    def _call_service(self, client, req):
-        if not client.wait_for_service(timeout_sec=1.0):
-            logger.debug("Service %s not available, skipping", client.srv_name)
-            return None
-        return client.call(req)
-
     async def sim_control(self, action: str, speed: float | None = None) -> None:
         if self._node is None:
             return
 
         if action in ("play", "pause", "stop"):
             state_map = {"stop": 0, "play": 1, "pause": 2}
-            req = self._SetSimulationState.Request()
-            req.state.state = state_map[action]
-            if self._sim_state_client is not None:
-                await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: self._call_service(self._sim_state_client, req)
-                )
+            if self._sim_state_pub is not None:
+                msg = self._Int32()
+                msg.data = state_map[action]
+                self._sim_state_pub.publish(msg)
 
         elif action == "step":
-            req = self._StepSimulation.Request()
-            req.steps = self._config.physics_decimation
-            if self._step_client is not None:
-                await asyncio.get_running_loop().run_in_executor(
-                    None, lambda: self._call_service(self._step_client, req)
-                )
+            if self._step_pub is not None:
+                msg = self._Int32()
+                msg.data = self._config.physics_decimation
+                self._step_pub.publish(msg)
 
         elif action == "reset":
             if self._config.default_joint_positions and self._publisher is not None:
