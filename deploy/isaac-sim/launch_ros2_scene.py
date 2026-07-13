@@ -54,8 +54,7 @@ DEFAULT_JOINT_POS = [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 
 
 CAM_WIDTH = 320
 CAM_HEIGHT = 180
-CAM_UPDATE_PERIOD = 0.0  # update every step; we throttle publishing ourselves
-CAM_PUBLISH_INTERVAL = 12  # publish every N physics steps (~5 Hz at 60 Hz physics)
+CAM_UPDATE_PERIOD = 0.0
 
 CAMERA_CONFIGS = {
     "wrist": CameraCfg(
@@ -178,7 +177,6 @@ def design_scene():
 
 def main():
     enable_extension("isaacsim.ros2.bridge")
-    enable_extension("isaacsim.ros2.sim_control")
 
     import rclpy
     from builtin_interfaces.msg import Time
@@ -243,6 +241,33 @@ def main():
 
     node.create_subscription(JointState, "/joint_commands", joint_command_cb, 10)
 
+    # Sim control: step-only mode — sim only advances when explicitly stepped
+    sim_playing = threading.Event()
+    steps_requested = threading.Event()
+    pending_steps = [0]
+    steps_lock = threading.Lock()
+
+    from simulation_interfaces.srv import SetSimulationState, StepSimulation
+
+    def set_sim_state_cb(request, response):
+        state = request.state.state
+        if state == 1:  # play
+            sim_playing.set()
+        else:  # stop (0) or pause (2)
+            sim_playing.clear()
+        response.success = True
+        return response
+
+    def step_sim_cb(request, response):
+        with steps_lock:
+            pending_steps[0] += request.steps
+        steps_requested.set()
+        response.success = True
+        return response
+
+    node.create_service(SetSimulationState, "/isaacsim/SetSimulationState", set_sim_state_cb)
+    node.create_service(StepSimulation, "/isaacsim/StepSimulation", step_sim_cb)
+
     spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
     spin_thread.start()
 
@@ -261,21 +286,32 @@ def main():
     sim_dt = sim.get_physics_dt()
     count = 0
     while simulation_app.is_running():
-        with target_lock:
-            current_target = target_joint_pos
-        franka.set_joint_position_target(current_target)
-        franka.write_data_to_sim()
-        sim.step()
-        franka.update(sim_dt)
-        for cube in cubes.values():
-            cube.update(sim_dt)
+        # Wait for play or explicit step request
+        if not sim_playing.is_set():
+            if not steps_requested.wait(timeout=0.1):
+                continue
+            steps_requested.clear()
 
-        for cam in cameras.values():
-            cam.update(sim_dt)
+        # Consume requested steps (or 1 if playing)
+        with steps_lock:
+            n_steps = max(pending_steps[0], 1)
+            pending_steps[0] = 0
 
-        count += 1
+        for _ in range(n_steps):
+            with target_lock:
+                current_target = target_joint_pos
+            franka.set_joint_position_target(current_target)
+            franka.write_data_to_sim()
+            sim.step()
+            franka.update(sim_dt)
+            for cube in cubes.values():
+                cube.update(sim_dt)
 
-        if count % 2 == 0:
+            for cam in cameras.values():
+                cam.update(sim_dt)
+
+            count += 1
+
             pos = franka.data.joint_pos[0].cpu().numpy()
             vel = franka.data.joint_vel[0].cpu().numpy()
             try:
@@ -299,22 +335,20 @@ def main():
             clk.clock = Time(sec=sec, nanosec=nsec)
             clock_pub.publish(clk)
 
-            # Publish camera images at throttled rate
-            if count % CAM_PUBLISH_INTERVAL == 0:
-                for name, cam in cameras.items():
-                    frame_idx = cam.frame[0].item()
-                    if frame_idx > last_cam_frame[name]:
-                        last_cam_frame[name] = frame_idx
-                        rgb = cam.data.output["rgb"][0].cpu().numpy()
-                        if rgb.shape[2] == 4:
-                            rgb = rgb[:, :, :3].copy()
-                        msg = numpy_to_image_msg(Image, Time, rgb, sec, nsec)
-                        cam_pubs[name].publish(msg)
+            for name, cam in cameras.items():
+                frame_idx = cam.frame[0].item()
+                if frame_idx > last_cam_frame[name]:
+                    last_cam_frame[name] = frame_idx
+                    rgb = cam.data.output["rgb"][0].cpu().numpy()
+                    if rgb.shape[2] == 4:
+                        rgb = rgb[:, :, :3].copy()
+                    msg = numpy_to_image_msg(Image, Time, rgb, sec, nsec)
+                    cam_pubs[name].publish(msg)
 
-        if count % 5000 == 0:
-            cam_frames = {n: last_cam_frame[n] for n in cameras}
-            sys.stdout.write(f"[INFO] Step {count}, cam frames: {cam_frames}\n")
-            sys.stdout.flush()
+            if count % 5000 == 0:
+                cam_frames = {n: last_cam_frame[n] for n in cameras}
+                sys.stdout.write(f"[INFO] Step {count}, cam frames: {cam_frames}\n")
+                sys.stdout.flush()
 
     node.destroy_node()
     rclpy.shutdown()

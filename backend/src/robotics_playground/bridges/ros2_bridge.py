@@ -139,7 +139,11 @@ class ROS2Bridge:
         self._enqueue_observation()
 
     async def get_observation(self) -> Observation:
-        return await self._obs_queue.get()
+        obs = await self._obs_queue.get()
+        # Drain stale observations, keep the freshest
+        while not self._obs_queue.empty():
+            obs = self._obs_queue.get_nowait()
+        return obs
 
     async def observation_stream(self) -> AsyncIterator[Observation]:
         while True:
