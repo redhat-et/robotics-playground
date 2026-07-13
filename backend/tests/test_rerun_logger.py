@@ -47,8 +47,8 @@ def test_log_observation_logs_joint_positions(mock_rr):
     logger.log_observation(obs, step=0)
 
     logged_paths = [call.args[0] for call in mock_rr.log.call_args_list]
-    assert "session/policy_0/joints/joint_0" in logged_paths
-    assert "session/policy_0/joints/joint_2" in logged_paths
+    assert "session/policy_0/joints/shoulder_rot" in logged_paths
+    assert "session/policy_0/joints/elbow_rot" in logged_paths
 
 
 def test_log_action_logs_dimensions(mock_rr):
