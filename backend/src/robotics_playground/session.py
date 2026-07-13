@@ -126,6 +126,8 @@ class Session:
 
     async def _run_loop(self):
         try:
+            self._logger.clear()
+
             # Step until we get an observation with all expected cameras.
             # Early steps may be lost while Zenoh routes are being established,
             # so we retry with a short delay between attempts.
@@ -152,6 +154,17 @@ class Session:
                     self._state = "error"
                     return
             logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
+
+            # Reset arm to manipulation-ready pose after Zenoh routes are up
+            logger.info("Run loop: resetting arm to home position...")
+            await self._bridge.sim_control("reset")
+            for _ in range(100):
+                await self._bridge.sim_control("step")
+            obs = await self._bridge.get_observation()
+            logger.info(
+                "Run loop: arm reset complete, joints: %s",
+                [round(p, 4) for p in obs.get("joint_positions", [])[:7]],
+            )
             display_step = 0
 
             while True:

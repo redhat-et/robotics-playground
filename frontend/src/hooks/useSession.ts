@@ -59,11 +59,17 @@ export function useSession(sessionId: string): UseSessionReturn {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'status') {
-            setSessionState({
-              state: msg.state ?? 'idle',
-              step: msg.step ?? 0,
-              instruction: msg.instruction ?? '',
-              bridgeStatus: msg.bridge_status ?? 'mock',
+            setSessionState((prev) => {
+              const newState = msg.state ?? 'idle';
+              if (newState === 'idle' && prev.state !== 'idle') {
+                setMessages([]);
+              }
+              return {
+                state: newState,
+                step: msg.step ?? 0,
+                instruction: msg.instruction ?? '',
+                bridgeStatus: msg.bridge_status ?? 'mock',
+              };
             });
           } else if (msg.type === 'instruction_ack') {
             setMessages((prev) => [
