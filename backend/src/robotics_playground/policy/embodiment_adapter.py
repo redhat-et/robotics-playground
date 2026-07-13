@@ -24,6 +24,10 @@ class EmbodimentAdapter:
         # Inverse: training order → URDF order
         self._act_reorder = [config.training_order.index(n) for n in config.joint_names]
 
+    @property
+    def camera_names(self) -> list[str]:
+        return list(self._config.camera_mapping.keys())
+
     def _resize_image(self, image: np.ndarray) -> np.ndarray:
         h, w = self._image_size
         pil_img = Image.fromarray(image)

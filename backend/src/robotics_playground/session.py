@@ -126,22 +126,31 @@ class Session:
 
     async def _run_loop(self):
         try:
-            # Wait for an observation that includes camera images
+            # Step until we get an observation with all expected cameras.
+            # Early steps may be lost while Zenoh routes are being established,
+            # so we retry with a short delay between attempts.
             logger.info("Run loop: waiting for first observation with cameras...")
-            obs = await self._bridge.get_observation()
-            max_camera_wait = 100
+            expected_cams = set(self._adapter.camera_names)
+            max_camera_wait = 200
             wait_iters = 0
-            while not obs.get("cameras"):
+            while True:
+                await self._bridge.sim_control("step")
+                try:
+                    obs = await asyncio.wait_for(self._bridge.get_observation(), timeout=2.0)
+                except TimeoutError:
+                    obs = {}
+                if expected_cams and expected_cams <= set(obs.get("cameras", {})):
+                    break
+                if not expected_cams and obs.get("cameras"):
+                    break
                 wait_iters += 1
                 if wait_iters > max_camera_wait:
                     logger.error(
-                        "No camera data after %d steps, aborting run loop",
+                        "No camera data after %d attempts, aborting run loop",
                         max_camera_wait,
                     )
                     self._state = "error"
                     return
-                await self._bridge.sim_control("step")
-                obs = await self._bridge.get_observation()
             logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
 
             while True:
