@@ -110,12 +110,9 @@ class Session:
                 await self.start()
             else:
                 self.resume()
-            await self._bridge.sim_control("play", speed=speed)
         elif action == "pause":
             self.pause()
-            await self._bridge.sim_control("pause")
         elif action == "stop":
-            await self._bridge.sim_control("stop")
             await self.stop()
         elif action == "step":
             if self._state == "idle":
