@@ -255,6 +255,7 @@ class Session:
                     obs = await self._bridge.get_observation()
                     display_step += 1
                     self._step = display_step
+                    self._logger.log_observation(obs, display_step)
 
                     if not self._paused.is_set() or stepping:
                         break
