@@ -95,6 +95,7 @@ class RerunLogger:
             open_browser=False,
         )
         rr.send_blueprint(blueprint)
+        rr.set_time("step", sequence=0)
         self._initialized = True
 
     def clear(self):

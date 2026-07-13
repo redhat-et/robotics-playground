@@ -152,6 +152,7 @@ class Session:
                     self._state = "error"
                     return
             logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
+            display_step = 0
 
             while True:
                 # Wait for unpause
@@ -173,11 +174,11 @@ class Session:
                     self._step_once.clear()
 
                 # Log current observation
-                self._step = obs["step"]
-                self._logger.log_observation(obs, obs["step"])
+                self._step = display_step
+                self._logger.log_observation(obs, display_step)
 
                 if self._instruction:
-                    self._logger.log_instruction(self._instruction, obs["step"])
+                    self._logger.log_instruction(self._instruction, display_step)
 
                 # Normalize and infer
                 logger.info(
@@ -209,8 +210,8 @@ class Session:
                     actions_tensor = raw_action
 
                 # Log ML debug path
-                self._logger.log_raw_action_tensor(actions_tensor, self._step)
-                self._logger.log_inference_latency(inference_ms, self._step)
+                self._logger.log_raw_action_tensor(actions_tensor, display_step)
+                self._logger.log_inference_latency(inference_ms, display_step)
 
                 # Denormalize
                 action_chunk = self._adapter.action_chunk_from_openpi(actions_tensor)
@@ -228,14 +229,15 @@ class Session:
                     )
 
                 # Log physical trajectory path
-                self._logger.log_action_trajectory(action_chunk, self._step)
+                self._logger.log_action_trajectory(action_chunk, display_step)
 
                 # Execute action_horizon actions then re-infer
                 for action in action_chunk[: self._action_horizon]:
                     await self._bridge.send_action(action)
                     await self._bridge.sim_control("step")
                     obs = await self._bridge.get_observation()
-                    self._step = obs["step"]
+                    display_step += 1
+                    self._step = display_step
 
                     if not self._paused.is_set() or stepping:
                         break
