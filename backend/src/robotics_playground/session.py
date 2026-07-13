@@ -24,11 +24,13 @@ class Session:
         policy: PolicyClient,
         adapter: EmbodimentAdapter,
         rerun_logger: RerunLogger,
+        action_horizon: int = 4,
     ):
         self._bridge = bridge
         self._policy = policy
         self._adapter = adapter
         self._logger = rerun_logger
+        self._action_horizon = action_horizon
         self._task: asyncio.Task | None = None
         self._instruction: str = ""
         self._state: str = "idle"
@@ -127,9 +129,12 @@ class Session:
 
     async def _run_loop(self):
         try:
-            # Initial observation
-            logger.info("Run loop: waiting for first observation...")
+            # Wait for an observation that includes camera images
+            logger.info("Run loop: waiting for first observation with cameras...")
             obs = await self._bridge.get_observation()
+            while not obs.get("cameras"):
+                await self._bridge.sim_control("step")
+                obs = await self._bridge.get_observation()
             logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
 
             while True:
@@ -209,8 +214,8 @@ class Session:
                 # Log physical trajectory path
                 self._logger.log_action_trajectory(action_chunk, self._step)
 
-                # Execute action chunk and consume observations
-                for action in action_chunk:
+                # Execute action_horizon actions then re-infer
+                for action in action_chunk[: self._action_horizon]:
                     await self._bridge.send_action(action)
                     await self._bridge.sim_control("step")
                     obs = await self._bridge.get_observation()
