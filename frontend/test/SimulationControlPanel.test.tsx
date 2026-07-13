@@ -72,10 +72,16 @@ describe('SimulationControlPanel', () => {
   it('calls onSimControl with reset when Reset is clicked', async () => {
     const onControl = vi.fn();
     const user = userEvent.setup();
-    render(<SimulationControlPanel state="running" bridgeStatus="mock" onSimControl={onControl} />);
+    render(<SimulationControlPanel state="running" bridgeStatus="connected" onSimControl={onControl} />);
 
     await user.click(screen.getByText('Reset'));
     expect(onControl).toHaveBeenCalledWith('reset');
+  });
+
+  it('disables Reset when bridge is disconnected', () => {
+    render(<SimulationControlPanel state="running" bridgeStatus="disconnected" onSimControl={vi.fn()} />);
+    const resetButton = screen.getByText('Reset');
+    expect(resetButton.closest('button')).toBeDisabled();
   });
 
   it('shows Error label for error state', () => {

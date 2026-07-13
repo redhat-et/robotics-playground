@@ -16,7 +16,7 @@ def test_websocket_connect_receives_status(mock_rr: MagicMock):
         assert "step" in data
         assert "instruction" in data
         assert "bridge_status" in data
-        assert data["bridge_status"] == "mock"
+        assert data["bridge_status"] == "connected"
 
 
 @patch("robotics_playground.rerun_logger.rr")

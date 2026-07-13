@@ -19,35 +19,70 @@ from robotics_playground.session import Session
 
 config = load_config()
 logging.basicConfig(level=getattr(logging, config.server.log_level.upper(), logging.INFO))
+logger = logging.getLogger(__name__)
+
+
+async def _observation_logger(bridge, rerun_logger: RerunLogger, stop_event: asyncio.Event):
+    """Stream observations from the bridge to Rerun continuously."""
+    step = 0
+    while not stop_event.is_set():
+        try:
+            if bridge.bridge_status != "connected":
+                await asyncio.sleep(0.5)
+                continue
+            obs = await asyncio.wait_for(bridge.get_observation(), timeout=2.0)
+            rerun_logger.log_observation(obs, step)
+            step += 1
+        except TimeoutError:
+            continue
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logger.exception("Observation logger error")
+            await asyncio.sleep(1.0)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     rerun_viewer_url = os.environ.get("RERUN_VIEWER_URL", "")
     cors_origins = [rerun_viewer_url] if rerun_viewer_url else None
-    logger = RerunLogger(
+    rerun_logger = RerunLogger(
         port=config.rerun.grpc_port,
         web_port=config.rerun.web_port,
         camera_names=list(config.ros2.cameras.keys()) or None,
         cors_allow_origin=cors_origins,
     )
-    logger.start()
+    rerun_logger.start()
+
     bridge = create_bridge(config)
+    await bridge.start()
+    logger.info("Bridge started: %s", bridge.bridge_status)
+
     policy = create_policy(config)
     adapter = EmbodimentAdapter(config.policy.embodiment)
     session = Session(
         bridge=bridge,
         policy=policy,
         adapter=adapter,
-        rerun_logger=logger,
+        rerun_logger=rerun_logger,
         action_horizon=config.policy.action_horizon,
     )
-    app.state.rerun_logger = logger
+
+    stop_logger = asyncio.Event()
+    obs_logger_task = asyncio.create_task(_observation_logger(bridge, rerun_logger, stop_logger))
+
+    app.state.bridge = bridge
+    app.state.rerun_logger = rerun_logger
     app.state.session = session
     try:
         yield
     finally:
         await session.stop()
+        stop_logger.set()
+        obs_logger_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await obs_logger_task
+        await bridge.close()
 
 
 app = FastAPI(title="Robotics Playground", lifespan=lifespan)
@@ -59,6 +94,9 @@ MODELS = [
 
 @app.get("/api/health")
 def health():
+    bridge = getattr(app.state, "bridge", None)
+    if bridge and bridge.bridge_status != "connected":
+        return {"status": "degraded", "bridge": bridge.bridge_status}
     return {"status": "ok"}
 
 
