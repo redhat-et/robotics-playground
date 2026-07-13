@@ -96,6 +96,7 @@ class RerunLogger:
         )
         rr.send_blueprint(blueprint)
         rr.set_time("step", sequence=0)
+        rr.log(self._prefix, rr.Clear(recursive=True))
         self._initialized = True
 
     def clear(self):
