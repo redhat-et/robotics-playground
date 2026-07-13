@@ -132,7 +132,17 @@ class Session:
             # Wait for an observation that includes camera images
             logger.info("Run loop: waiting for first observation with cameras...")
             obs = await self._bridge.get_observation()
+            max_camera_wait = 100
+            wait_iters = 0
             while not obs.get("cameras"):
+                wait_iters += 1
+                if wait_iters > max_camera_wait:
+                    logger.error(
+                        "No camera data after %d steps, aborting run loop",
+                        max_camera_wait,
+                    )
+                    self._state = "error"
+                    return
                 await self._bridge.sim_control("step")
                 obs = await self._bridge.get_observation()
             logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
