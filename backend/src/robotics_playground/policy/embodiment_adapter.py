@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from robotics_playground.config import EmbodimentConfig
 
 
+_JOINT_LIMIT_MARGIN = 0.05
+
+
 class EmbodimentAdapter:
     def __init__(self, config: EmbodimentConfig, session_id: str = "default"):
         self._config = config
@@ -23,6 +26,18 @@ class EmbodimentAdapter:
         self._obs_reorder = [config.joint_names.index(n) for n in config.training_order]
         # Inverse: training order → URDF order
         self._act_reorder = [config.training_order.index(n) for n in config.joint_names]
+
+        # Pre-compute clamping arrays in URDF order
+        if config.joint_limits:
+            self._lower = np.array(
+                [config.joint_limits[n][0] + _JOINT_LIMIT_MARGIN for n in config.joint_names]
+            )
+            self._upper = np.array(
+                [config.joint_limits[n][1] - _JOINT_LIMIT_MARGIN for n in config.joint_names]
+            )
+        else:
+            self._lower = None
+            self._upper = None
 
     @property
     def camera_names(self) -> list[str]:
@@ -75,7 +90,12 @@ class EmbodimentAdapter:
             # Reorder from training order to URDF order
             pos_urdf = pos_physical[self._act_reorder]
 
+            if self._lower is not None:
+                pos_urdf = np.clip(pos_urdf, self._lower, self._upper)
+
             gripper_physical = float(row[n_joints]) if row.shape[0] > n_joints else 0.0
+            g_lo, g_hi = self._config.gripper_limits
+            gripper_physical = max(g_lo, min(g_hi, gripper_physical))
 
             result.append(
                 Action(

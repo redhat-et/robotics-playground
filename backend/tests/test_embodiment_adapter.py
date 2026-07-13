@@ -154,3 +154,21 @@ def test_action_reorder_inverse():
     assert abs(positions[0] - 0.1) < 1e-5
     assert abs(positions[1] - 0.2) < 1e-5
     assert abs(positions[2] - 0.3) < 1e-5
+
+
+def test_action_clamped_to_joint_limits():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG)
+    # Exceed limits: j1 limit [-2.0, 2.0], j4 limit [-3.0, 0.0]
+    action_row = np.array([5.0, 0.0, 0.0, -5.0, 0.0, 2.0, 0.0, 0.1], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(action_row.reshape(1, 8))
+    pos = actions[0]["joint_positions"]
+    # Should be clamped to limit - margin (0.05)
+    assert abs(pos[0] - 1.95) < 1e-5  # j1 upper 2.0 - 0.05
+    assert abs(pos[3] - (-2.95)) < 1e-5  # j4 lower -3.0 + 0.05
+
+
+def test_gripper_clamped_to_limits():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG)
+    action_row = np.array([0.0, 0.0, 0.0, -1.0, 0.0, 2.0, 0.0, 0.5], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(action_row.reshape(1, 8))
+    assert abs(actions[0]["gripper_position"] - 0.04) < 1e-5  # clamped to upper limit
