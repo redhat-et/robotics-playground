@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from robotics_playground.main import app
+from robotics_playground.session import DEFAULT_INSTRUCTION
 
 _MAX_RECV = 20
 
@@ -119,7 +120,7 @@ def test_reset_sends_teleport_and_clears(mock_rr: MagicMock):
             if status["state"] == "idle":
                 break
         assert status["state"] == "idle"
-        assert status["instruction"] == ""
+        assert status["instruction"] == DEFAULT_INSTRUCTION
         assert status["bridge_status"] == "connected"
 
         bridge = app.state.bridge

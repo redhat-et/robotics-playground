@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     from robotics_playground.rerun_logger import RerunLogger
 
 
+DEFAULT_INSTRUCTION = "Stay still and do not move."
+
+
 class Session:
     def __init__(
         self,
@@ -32,7 +35,7 @@ class Session:
         self._logger = rerun_logger
         self._action_horizon = action_horizon
         self._task: asyncio.Task | None = None
-        self._instruction: str = ""
+        self._instruction: str = DEFAULT_INSTRUCTION
         self._state: str = "idle"
         self._step: int = 0
         self._paused = asyncio.Event()
@@ -99,7 +102,7 @@ class Session:
         await self.stop()
         await self._bridge.sim_control("reset")
         self._logger.clear()
-        self._instruction = ""
+        self._instruction = "Stay still and do not move."
 
     async def handle_sim_control(self, action: str, speed: float | None = None):
         logger.info("handle_sim_control(%s), current state=%s", action, self._state)
