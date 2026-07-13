@@ -48,7 +48,8 @@ CUBE_CONFIGS = {
     },
 }
 
-# Manipulation-ready pose (from FrankaCubeStackEnvCfg)
+# Manipulation-ready pose (from FrankaCubeStackEnvCfg) — overrides
+# FRANKA_PANDA_HIGH_PD_CFG.init_state.joint_pos via write_joint_state_to_sim()
 DEFAULT_JOINT_POS = [0.0444, -0.1894, -0.1107, -2.5148, 0.0044, 2.3775, 0.6952, 0.04, 0.04]
 
 CAM_WIDTH = 320
@@ -196,8 +197,12 @@ def main():
     cubes = scene_entities["cubes"]
     franka = scene_entities["franka"]
 
+    # Write initial joint state explicitly (Fabric may be disabled on CPU)
+    init_pos = torch.tensor([DEFAULT_JOINT_POS], dtype=torch.float32, device=sim.device)
+    franka.write_joint_state_to_sim(init_pos, torch.zeros_like(init_pos))
+
     # Target pose for PD controller — applied each sim step
-    target_joint_pos = torch.tensor([DEFAULT_JOINT_POS], dtype=torch.float32, device=sim.device)
+    target_joint_pos = init_pos.clone()
 
     # Position exterior cameras after sim.reset() allocates buffers
     device = sim.device
