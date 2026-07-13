@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+import websockets.exceptions
 import websockets.sync.client
 
 from robotics_playground.vendored import msgpack_numpy
@@ -38,8 +39,15 @@ class OpenPIClient:
         if self._ws is None:
             raise RuntimeError("Not connected")
         data = self._packer.pack(obs)
-        self._ws.send(data)
-        response = self._ws.recv()
+        try:
+            self._ws.send(data)
+            response = self._ws.recv()
+        except websockets.exceptions.ConnectionClosed:
+            logger.warning("OpenPI connection lost, reconnecting...")
+            self._ws, self._server_metadata = self._connect_sync()
+            data = self._packer.pack(obs)
+            self._ws.send(data)
+            response = self._ws.recv()
         if isinstance(response, str):
             raise RuntimeError(f"Error in inference server:\n{response}")
         return msgpack_numpy.unpackb(response)
