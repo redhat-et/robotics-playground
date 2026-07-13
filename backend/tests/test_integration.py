@@ -6,18 +6,22 @@ Session, Bridge) using MockBridge with disconnect/reconnect simulation.
 
 from __future__ import annotations
 
-import time
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
 from robotics_playground.main import app
 
+_MAX_RECV = 20
 
-def _receive_status(ws, timeout: float = 2.0):
-    """Receive status messages until we get one, with timeout."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
+
+def _receive_status(ws, max_recv: int = _MAX_RECV):
+    """Receive up to *max_recv* messages, returning the first status message.
+
+    Starlette's synchronous test WebSocket has no per-call receive timeout,
+    so we cap iterations instead of using a wall-clock deadline.
+    """
+    for _ in range(max_recv):
         data = ws.receive_json()
         if data.get("type") == "status":
             return data
