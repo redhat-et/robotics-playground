@@ -35,6 +35,7 @@ async def _observation_logger(
     observation consumption, so this task yields.
     """
     step = 0
+    was_active = False
     while not stop_event.is_set():
         try:
             if bridge.bridge_status != "connected":
@@ -42,8 +43,14 @@ async def _observation_logger(
                 continue
 
             if session.state in ("running", "paused"):
+                was_active = True
                 await asyncio.sleep(1.0)
                 continue
+
+            if was_active:
+                rerun_logger.clear()
+                step = 0
+                was_active = False
 
             await bridge.sim_control("step")
             obs = await asyncio.wait_for(bridge.get_observation(), timeout=2.0)
