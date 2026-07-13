@@ -21,6 +21,14 @@ Two containers: React/PatternFly frontend (nginx) + Python/FastAPI backend (orch
 - Always use `make` targets for building, running, and deploying — never run `podman build`, `podman run`, or `podman compose` directly
 - `deploy/compose.yaml` must not contain `build:` directives — images are built separately via `make build` and referenced by tag only
 
+## Git Workflow
+
+- Never push directly to `main` — always use feature branches + PRs
+- **One PR per logical change** — don't stack multiple commits on one branch across separate PRs. After a PR is merged, create a new branch from `origin/main` for the next change
+- Before creating a PR, always `git fetch origin main && git rebase origin/main` to avoid merge conflicts
+- After a PR is merged, do not reuse the old branch — `git checkout -b <new-branch> origin/main`
+- Images are built and pushed from `main` only — never from feature branches. Wait for PRs to merge and CI to build before deploying
+
 ## Development
 
 - `make dev` — start frontend (webpack dev server :9200) + backend (uvicorn :8000)
