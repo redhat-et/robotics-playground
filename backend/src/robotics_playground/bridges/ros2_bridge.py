@@ -123,6 +123,11 @@ class ROS2Bridge:
         self._setup_node()
         self._watchdog_task = asyncio.create_task(self._watchdog())
 
+    async def _reconnect(self) -> None:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._teardown_node)
+        await loop.run_in_executor(None, self._setup_node)
+
     async def _watchdog(self) -> None:
         delay = self._reconnect_delay
         while True:
@@ -140,10 +145,9 @@ class ROS2Bridge:
                             "No observations received after %.1fs, reconnecting...",
                             now - self._connect_time,
                         )
-                        self._teardown_node()
+                        await self._reconnect()
                         await asyncio.sleep(delay)
                         delay = min(delay * 2, self._max_reconnect_delay)
-                        self._setup_node()
                     continue
 
                 elapsed = now - self._last_obs_time
@@ -153,10 +157,9 @@ class ROS2Bridge:
                         elapsed,
                         self._watchdog_timeout,
                     )
-                    self._teardown_node()
+                    await self._reconnect()
                     await asyncio.sleep(delay)
                     delay = min(delay * 2, self._max_reconnect_delay)
-                    self._setup_node()
                 else:
                     delay = self._reconnect_delay
             except Exception:
