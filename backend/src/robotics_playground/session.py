@@ -103,7 +103,7 @@ class Session:
     async def reset(self):
         await self.stop()
         await self._bridge.sim_control("reset")
-        await asyncio.to_thread(self._logger.clear)
+        self._logger.clear()
         self._instruction = "Stay still and do not move."
 
     async def handle_sim_control(self, action: str, speed: float | None = None):
@@ -128,7 +128,7 @@ class Session:
 
     async def _run_loop(self):
         try:
-            await asyncio.to_thread(self._logger.clear)
+            self._logger.clear()
 
             # Step until we get an observation with all expected cameras.
             # Early steps may be lost while Zenoh routes are being established,
@@ -198,12 +198,10 @@ class Session:
 
                 # Log current observation
                 self._step = display_step
-                await asyncio.to_thread(self._logger.log_observation, obs, display_step)
+                self._logger.log_observation(obs, display_step)
 
                 if self._instruction:
-                    await asyncio.to_thread(
-                        self._logger.log_instruction, self._instruction, display_step
-                    )
+                    self._logger.log_instruction(self._instruction, display_step)
 
                 # Normalize and infer
                 logger.info(
@@ -235,12 +233,8 @@ class Session:
                     actions_tensor = raw_action
 
                 # Log ML debug path
-                await asyncio.to_thread(
-                    self._logger.log_raw_action_tensor, actions_tensor, display_step
-                )
-                await asyncio.to_thread(
-                    self._logger.log_inference_latency, inference_ms, display_step
-                )
+                self._logger.log_raw_action_tensor(actions_tensor, display_step)
+                self._logger.log_inference_latency(inference_ms, display_step)
 
                 # Denormalize
                 action_chunk = self._adapter.action_chunk_from_openpi(actions_tensor)
@@ -258,9 +252,7 @@ class Session:
                     )
 
                 # Log physical trajectory path
-                await asyncio.to_thread(
-                    self._logger.log_action_trajectory, action_chunk, display_step
-                )
+                self._logger.log_action_trajectory(action_chunk, display_step)
 
                 # Execute action_horizon actions then re-infer
                 for action in action_chunk[: self._action_horizon]:
@@ -281,9 +273,7 @@ class Session:
                         continue
                     display_step += 1
                     self._step = display_step
-                    await asyncio.to_thread(
-                        self._logger.log_observation, obs, display_step, cameras=False
-                    )
+                    self._logger.log_observation(obs, display_step, cameras=False)
 
                     if not self._paused.is_set() or stepping:
                         break
