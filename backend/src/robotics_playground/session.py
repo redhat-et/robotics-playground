@@ -263,14 +263,18 @@ class Session:
                 # Log physical trajectory path
                 self._logger.log_action_trajectory(action_chunk, display_step)
 
-                # Send actions — PD controller on sim side tracks asynchronously
-                for action in action_chunk[: self._action_horizon]:
+                # Send actions spaced apart so PD controller can track each
+                # waypoint before receiving the next target.
+                horizon = action_chunk[: self._action_horizon]
+                action_interval = inference_ms / 1000 / max(len(horizon), 1)
+                for action in horizon:
                     await self._bridge.send_action(action)
                     display_step += 1
                     self._step = display_step
 
                     if not self._paused.is_set() or stepping:
                         break
+                    await asyncio.sleep(action_interval)
 
                 if stepping:
                     self._paused.clear()
