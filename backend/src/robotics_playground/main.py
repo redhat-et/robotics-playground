@@ -30,9 +30,9 @@ async def _observation_logger(
 ):
     """Preview-mode observation logger.
 
-    When the session is idle, steps the sim to render camera frames and logs
-    them to Rerun (~2 FPS).  When the session is running, the run loop owns
-    observation consumption, so this task yields.
+    When the session is idle, reads observations from the continuously
+    running sim and logs them to Rerun (~2 FPS).  When the session is
+    running, the run loop owns observation consumption, so this task yields.
     """
     step = 0
     was_active = False
@@ -52,7 +52,7 @@ async def _observation_logger(
                 step = 0
                 was_active = False
 
-            await bridge.sim_control("step")
+            await bridge.sim_control("play")
             obs = await asyncio.wait_for(bridge.get_observation(), timeout=2.0)
             rerun_logger.log_observation(obs, step)
             step += 1

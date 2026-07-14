@@ -76,9 +76,9 @@ async def test_lockstep_session_pause_resume():
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
-    session.pause()
+    await session.pause()
     assert session.state == "paused"
-    session.resume()
+    await session.resume()
     assert session.state == "running"
     await session.stop()
 

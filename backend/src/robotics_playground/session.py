@@ -76,6 +76,7 @@ class Session:
     async def stop(self):
         if self._task is None:
             return
+        await self._bridge.sim_control("pause")
         self._task.cancel()
         self._paused.set()
         self._step_once.clear()
@@ -86,13 +87,15 @@ class Session:
         self._state = "idle"
         self._step = 0
 
-    def pause(self):
+    async def pause(self):
         if self._state == "running":
+            await self._bridge.sim_control("pause")
             self._paused.clear()
             self._state = "paused"
 
-    def resume(self):
+    async def resume(self):
         if self._state == "paused":
+            await self._bridge.sim_control("play")
             self._paused.set()
             self._state = "running"
 
@@ -104,7 +107,7 @@ class Session:
         await self.stop()
         await self._bridge.sim_control("reset")
         self._logger.clear()
-        self._instruction = "Stay still and do not move."
+        self._instruction = DEFAULT_INSTRUCTION
 
     async def handle_sim_control(self, action: str, speed: float | None = None):
         logger.info("handle_sim_control(%s), current state=%s", action, self._state)
@@ -112,15 +115,15 @@ class Session:
             if self._state == "idle":
                 await self.start()
             else:
-                self.resume()
+                await self.resume()
         elif action == "pause":
-            self.pause()
+            await self.pause()
         elif action == "stop":
             await self.stop()
         elif action == "step":
             if self._state == "idle":
                 await self.start()
-                self.pause()
+                await self.pause()
             await self._bridge.sim_control("step")
             self.step_once()
         elif action == "reset":
@@ -130,15 +133,15 @@ class Session:
         try:
             self._logger.clear()
 
-            # Step until we get an observation with all expected cameras.
-            # Early steps may be lost while Zenoh routes are being established,
-            # so we retry with a short delay between attempts.
-            logger.info("Run loop: waiting for first observation with cameras...")
+            # Start sim in play mode and wait for observations with cameras.
+            # The sim runs continuously; early observations may lack cameras
+            # while Zenoh routes are being established.
+            logger.info("Run loop: starting sim and waiting for camera data...")
+            await self._bridge.sim_control("play")
             expected_cams = set(self._adapter.camera_names)
             max_camera_wait = 200
             wait_iters = 0
             while True:
-                await self._bridge.sim_control("step")
                 try:
                     obs = await asyncio.wait_for(self._bridge.get_observation(), timeout=2.0)
                 except TimeoutError:
@@ -158,13 +161,10 @@ class Session:
             logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
 
             # Teleport arm to manipulation-ready pose after Zenoh routes are up.
-            # This calls write_joint_state_to_sim on the Isaac Lab side —
-            # instant, no physics stepping needed. Send multiple times to
-            # ensure delivery through Zenoh.
+            # Send multiple times to ensure delivery through Zenoh.
             logger.info("Run loop: teleporting arm to home position...")
             for _ in range(3):
                 await self._bridge.sim_control("reset")
-            await self._bridge.sim_control("step")
             try:
                 obs = await asyncio.wait_for(self._bridge.get_observation(), timeout=5.0)
             except TimeoutError:
@@ -196,7 +196,11 @@ class Session:
                 if stepping:
                     self._step_once.clear()
 
-                # Log current observation
+                # Get latest observation from continuous stream
+                obs = await asyncio.wait_for(
+                    self._bridge.get_observation(),
+                    timeout=self._observation_timeout,
+                )
                 self._step = display_step
                 self._logger.log_observation(obs, display_step)
 
@@ -210,10 +214,9 @@ class Session:
                 )
                 openpi_obs = self._adapter.observation_to_openpi(obs, self._instruction)
                 logger.info(
-                    "Calling policy.infer() at step %s, instruction=%r, obs_keys=%s",
+                    "Calling policy.infer() at step %s, instruction=%r",
                     self._step,
                     self._instruction,
-                    list(openpi_obs.keys()),
                 )
 
                 async def _keep_sim_alive():
@@ -232,11 +235,7 @@ class Session:
                     with contextlib.suppress(asyncio.CancelledError):
                         await keepalive
                 inference_ms = (time.monotonic() - t0) * 1000
-                logger.info(
-                    "Inference returned in %.1fms, type=%s",
-                    inference_ms,
-                    type(raw_action).__name__,
-                )
+                logger.info("Inference returned in %.1fms", inference_ms)
 
                 # Normalize response: server may return a raw ndarray or a dict
                 if isinstance(raw_action, np.ndarray):
@@ -260,34 +259,15 @@ class Session:
                         [round(p, 4) for p in a["joint_positions"]],
                         a["gripper_position"],
                     )
-                    logger.info(
-                        "Raw tensor[0]: %s",
-                        np.array2string(actions_tensor[0], precision=4, suppress_small=True),
-                    )
 
                 # Log physical trajectory path
                 self._logger.log_action_trajectory(action_chunk, display_step)
 
-                # Execute action_horizon actions then re-infer
+                # Send actions — PD controller on sim side tracks asynchronously
                 for action in action_chunk[: self._action_horizon]:
                     await self._bridge.send_action(action)
-                    await self._bridge.sim_control("step")
-                    try:
-                        obs = await asyncio.wait_for(
-                            self._bridge.get_observation(),
-                            timeout=self._observation_timeout,
-                        )
-                    except TimeoutError:
-                        if self._bridge.bridge_status != "connected":
-                            logger.error("Bridge disconnected during action execution")
-                            self._state = "error"
-                            return
-                        if not self._paused.is_set() or stepping:
-                            break
-                        continue
                     display_step += 1
                     self._step = display_step
-                    self._logger.log_observation(obs, display_step, cameras=False)
 
                     if not self._paused.is_set() or stepping:
                         break

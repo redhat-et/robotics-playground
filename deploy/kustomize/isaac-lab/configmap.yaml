@@ -248,6 +248,37 @@ data:
 
         node.create_subscription(JointState, "/joint_commands", joint_command_cb, 10)
 
+        # Sim control topics — allow the backend to play/pause/step/teleport.
+        # Default to playing so the sim runs immediately on startup.
+        from std_msgs.msg import Int32
+
+        init_pos = torch.tensor([DEFAULT_JOINT_POS], dtype=torch.float32, device=sim.device)
+        sim_playing = threading.Event()
+        sim_playing.set()
+        steps_requested = threading.Event()
+        pending_steps = [0]
+        steps_lock = threading.Lock()
+
+        def sim_state_cb(msg):
+            if msg.data == 1:  # play
+                sim_playing.set()
+            else:  # stop (0) or pause (2)
+                sim_playing.clear()
+
+        def step_cb(msg):
+            with steps_lock:
+                pending_steps[0] += msg.data
+            steps_requested.set()
+
+        teleport_requested = threading.Event()
+
+        def teleport_cb(msg):
+            teleport_requested.set()
+
+        node.create_subscription(Int32, "/sim_control/state", sim_state_cb, 10)
+        node.create_subscription(Int32, "/sim_control/step", step_cb, 10)
+        node.create_subscription(Int32, "/sim_control/teleport", teleport_cb, 10)
+
         spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
         spin_thread.start()
 
@@ -266,55 +297,76 @@ data:
         sim_dt = sim.get_physics_dt()
         count = 0
         while simulation_app.is_running():
-            with target_lock:
-                current_target = target_joint_pos
-            franka.set_joint_position_target(current_target)
-            franka.write_data_to_sim()
-            sim.step()
-            franka.update(sim_dt)
-            for cube in cubes.values():
-                cube.update(sim_dt)
+            if teleport_requested.is_set():
+                teleport_requested.clear()
+                with target_lock:
+                    target_joint_pos = init_pos.clone()
+                franka.write_joint_state_to_sim(init_pos, torch.zeros_like(init_pos))
+                franka.update(sim_dt)
+                sys.stdout.write("[INFO] Teleported arm to home position\n")
+                sys.stdout.flush()
 
-            for cam in cameras.values():
-                cam.update(sim_dt)
+            # Wait for play or explicit step request
+            if not sim_playing.is_set():
+                if not steps_requested.wait(timeout=0.1):
+                    continue
+                steps_requested.clear()
 
-            count += 1
+            # Consume requested steps (or 1 if playing)
+            with steps_lock:
+                n_steps = max(pending_steps[0], 1)
+                pending_steps[0] = 0
 
-            if count % 2 == 0:
-                pos = franka.data.joint_pos[0].cpu().numpy()
-                vel = franka.data.joint_vel[0].cpu().numpy()
-                try:
-                    eff = franka.data.applied_torque[0].cpu().numpy()
-                except (AttributeError, RuntimeError):
-                    eff = np.zeros_like(pos)
+            for _ in range(n_steps):
+                with target_lock:
+                    current_target = target_joint_pos
+                franka.set_joint_position_target(current_target)
+                franka.write_data_to_sim()
+                sim.step()
+                franka.update(sim_dt)
+                for cube in cubes.values():
+                    cube.update(sim_dt)
 
-                sim_time = count * sim_dt
-                sec = int(sim_time)
-                nsec = int((sim_time - sec) * 1e9)
+                for cam in cameras.values():
+                    cam.update(sim_dt)
 
-                js = JointState()
-                js.header.stamp = Time(sec=sec, nanosec=nsec)
-                js.name = joint_names
-                js.position = pos.tolist()
-                js.velocity = vel.tolist()
-                js.effort = eff.tolist()
-                joint_pub.publish(js)
+                count += 1
 
-                clk = Clock()
-                clk.clock = Time(sec=sec, nanosec=nsec)
-                clock_pub.publish(clk)
+                if count % 2 == 0:
+                    pos = franka.data.joint_pos[0].cpu().numpy()
+                    vel = franka.data.joint_vel[0].cpu().numpy()
+                    try:
+                        eff = franka.data.applied_torque[0].cpu().numpy()
+                    except (AttributeError, RuntimeError):
+                        eff = np.zeros_like(pos)
 
-                # Publish camera images at throttled rate
-                if count % CAM_PUBLISH_INTERVAL == 0:
-                    for name, cam in cameras.items():
-                        frame_idx = cam.frame[0].item()
-                        if frame_idx > last_cam_frame[name]:
-                            last_cam_frame[name] = frame_idx
-                            rgb = cam.data.output["rgb"][0].cpu().numpy()
-                            if rgb.shape[2] == 4:
-                                rgb = rgb[:, :, :3].copy()
-                            msg = numpy_to_image_msg(Image, Time, rgb, sec, nsec)
-                            cam_pubs[name].publish(msg)
+                    sim_time = count * sim_dt
+                    sec = int(sim_time)
+                    nsec = int((sim_time - sec) * 1e9)
+
+                    js = JointState()
+                    js.header.stamp = Time(sec=sec, nanosec=nsec)
+                    js.name = joint_names
+                    js.position = pos.tolist()
+                    js.velocity = vel.tolist()
+                    js.effort = eff.tolist()
+                    joint_pub.publish(js)
+
+                    clk = Clock()
+                    clk.clock = Time(sec=sec, nanosec=nsec)
+                    clock_pub.publish(clk)
+
+                    # Publish camera images at throttled rate
+                    if count % CAM_PUBLISH_INTERVAL == 0:
+                        for name, cam in cameras.items():
+                            frame_idx = cam.frame[0].item()
+                            if frame_idx > last_cam_frame[name]:
+                                last_cam_frame[name] = frame_idx
+                                rgb = cam.data.output["rgb"][0].cpu().numpy()
+                                if rgb.shape[2] == 4:
+                                    rgb = rgb[:, :, :3].copy()
+                                msg = numpy_to_image_msg(Image, Time, rgb, sec, nsec)
+                                cam_pubs[name].publish(msg)
 
             if count % 5000 == 0:
                 cam_frames = {n: last_cam_frame[n] for n in cameras}

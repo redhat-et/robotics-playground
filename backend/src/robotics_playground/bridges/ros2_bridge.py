@@ -46,6 +46,7 @@ class ROS2Bridge:
         self._last_obs_time: float = 0.0
         self._connect_time: float = 0.0
         self._watchdog_task: asyncio.Task | None = None
+        self._sim_paused = False
 
     @property
     def bridge_status(self) -> str:
@@ -133,7 +134,7 @@ class ROS2Bridge:
         while True:
             await asyncio.sleep(2.0)
 
-            if self._status == "disconnected":
+            if self._status == "disconnected" or self._sim_paused:
                 continue
 
             now = time.monotonic()
@@ -238,6 +239,7 @@ class ROS2Bridge:
             return
 
         if action in ("play", "pause", "stop"):
+            self._sim_paused = action in ("pause", "stop")
             state_map = {"stop": 0, "play": 1, "pause": 2}
             if self._sim_state_pub is not None:
                 msg = self._Int32()

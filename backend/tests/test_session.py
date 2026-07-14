@@ -105,9 +105,9 @@ async def test_pause_resume():
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
-    session.pause()
+    await session.pause()
     assert session.state == "paused"
-    session.resume()
+    await session.resume()
     assert session.state == "running"
     await session.stop()
 
@@ -266,6 +266,23 @@ async def test_reset_from_idle_sends_teleport():
     await session.reset()
     assert ("reset", None) in bridge.sim_control_calls
     assert session.state == "idle"
+
+
+@pytest.mark.anyio
+async def test_start_sends_play_stop_sends_pause():
+    bridge = MockBridge()
+    await bridge.start()
+    session = Session(
+        bridge=bridge,
+        policy=MockClient(),
+        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        rerun_logger=_make_mock_logger(),
+    )
+    await session.start()
+    await asyncio.sleep(0.1)
+    assert ("play", None) in bridge.sim_control_calls
+    await session.stop()
+    assert ("pause", None) in bridge.sim_control_calls
 
 
 @pytest.mark.anyio
