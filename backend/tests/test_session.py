@@ -266,3 +266,25 @@ async def test_reset_from_idle_sends_teleport():
     await session.reset()
     assert ("reset", None) in bridge.sim_control_calls
     assert session.state == "idle"
+
+
+@pytest.mark.anyio
+async def test_bridge_disconnect_during_run_sets_error():
+    bridge = MockBridge()
+    await bridge.start()
+    session = Session(
+        bridge=bridge,
+        policy=MockClient(),
+        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        rerun_logger=_make_mock_logger(),
+        observation_timeout=0.5,
+    )
+    await session.start()
+    assert session.state == "running"
+    await asyncio.sleep(0.1)
+    bridge.simulate_disconnect()
+    for _ in range(30):
+        await asyncio.sleep(0.1)
+        if session.state == "error":
+            break
+    assert session.state == "error"

@@ -56,7 +56,7 @@ async def test_ros2_bridge_start_initializes_rclpy(mock_rclpy):
     bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
     await bridge.start()
     mock_rclpy["rclpy"].init.assert_called_once()
-    assert bridge.bridge_status == "connected"
+    assert bridge.bridge_status == "connecting"
     await bridge.close()
 
 
@@ -191,3 +191,57 @@ async def test_ros2_bridge_send_action_publishes(mock_rclpy):
     assert str(published_msg.velocity[7]) == "nan"
 
     await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_ros2_bridge_status_connecting_after_start(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+    assert bridge.bridge_status == "connecting"
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_ros2_bridge_transitions_to_connected_on_observation(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+    assert bridge.bridge_status == "connecting"
+
+    bridge._on_joint_state_received([0.1, 0.2, 0.3], [0.0, 0.0, 0.0])
+    assert bridge.bridge_status == "connected"
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_ros2_bridge_accepts_bridge_config(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import BridgeConfig, ROS2Config
+
+    bridge_config = BridgeConfig(
+        watchdog_timeout=5.0,
+        reconnect_delay=1.0,
+        max_reconnect_delay=15.0,
+    )
+    bridge = ROS2Bridge(ROS2Config(), bridge_config)
+    assert bridge._watchdog_timeout == 5.0
+    assert bridge._reconnect_delay == 1.0
+    assert bridge._max_reconnect_delay == 15.0
+
+
+@pytest.mark.anyio
+async def test_ros2_bridge_watchdog_cancels_on_close(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+    assert bridge._watchdog_task is not None
+    assert not bridge._watchdog_task.done()
+    await bridge.close()
+    assert bridge._watchdog_task is None

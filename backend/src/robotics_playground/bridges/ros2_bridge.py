@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import logging
 import threading
+import time
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
@@ -12,14 +13,22 @@ import numpy as np
 from robotics_playground.bridges.protocol import Action, Observation
 
 if TYPE_CHECKING:
-    from robotics_playground.config import ROS2Config
+    from robotics_playground.config import BridgeConfig, ROS2Config
 
 logger = logging.getLogger(__name__)
 
 
 class ROS2Bridge:
-    def __init__(self, config: ROS2Config):
+    def __init__(self, config: ROS2Config, bridge_config: BridgeConfig | None = None):
         self._config = config
+        self._watchdog_timeout = 10.0
+        self._reconnect_delay = 2.0
+        self._max_reconnect_delay = 30.0
+        if bridge_config is not None:
+            self._watchdog_timeout = bridge_config.watchdog_timeout
+            self._reconnect_delay = bridge_config.reconnect_delay
+            self._max_reconnect_delay = bridge_config.max_reconnect_delay
+
         self._node = None
         self._executor = None
         self._spin_thread: threading.Thread | None = None
@@ -34,26 +43,25 @@ class ROS2Bridge:
         self._owns_rclpy = False
         self._sim_state_pub = None
         self._step_pub = None
+        self._teleport_pub = None
+        self._Int32 = None
+        self._last_obs_time: float = 0.0
+        self._connect_time: float = 0.0
+        self._watchdog_task: asyncio.Task | None = None
 
     @property
     def bridge_status(self) -> str:
         return self._status
 
-    async def start(self) -> None:
-        import rclpy
+    def _setup_node(self) -> None:
         from rclpy.executors import SingleThreadedExecutor
         from rclpy.node import Node
+        from sensor_msgs.msg import Image, JointState
+        from std_msgs.msg import Int32
 
-        self._loop = asyncio.get_running_loop()
-
-        if not rclpy.ok():
-            rclpy.init(domain_id=self._config.domain_id)
-            self._owns_rclpy = True
         self._node = Node("robotics_playground_bridge")
         self._executor = SingleThreadedExecutor()
         self._executor.add_node(self._node)
-
-        from sensor_msgs.msg import Image, JointState
 
         for name, topic in self._config.cameras.items():
             self._node.create_subscription(
@@ -76,8 +84,6 @@ class ROS2Bridge:
             10,
         )
 
-        from std_msgs.msg import Int32
-
         self._Int32 = Int32
         self._sim_state_pub = self._node.create_publisher(Int32, "/sim_control/state", 10)
         self._step_pub = self._node.create_publisher(Int32, "/sim_control/step", 10)
@@ -85,7 +91,75 @@ class ROS2Bridge:
 
         self._spin_thread = threading.Thread(target=self._spin, daemon=True)
         self._spin_thread.start()
-        self._status = "connected"
+
+        self._connect_time = time.monotonic()
+        self._status = "connecting"
+        logger.info("ROS 2 node created, status=connecting")
+
+    def _teardown_node(self) -> None:
+        if self._executor is not None:
+            self._executor.shutdown()
+            self._executor = None
+        if self._spin_thread is not None:
+            self._spin_thread.join(timeout=2.0)
+            self._spin_thread = None
+        if self._node is not None:
+            self._node.destroy_node()
+            self._node = None
+        self._publisher = None
+        self._sim_state_pub = None
+        self._step_pub = None
+        self._teleport_pub = None
+        self._status = "disconnected"
+        logger.info("ROS 2 node torn down, status=disconnected")
+
+    async def start(self) -> None:
+        import rclpy
+
+        self._loop = asyncio.get_running_loop()
+
+        if not rclpy.ok():
+            rclpy.init(domain_id=self._config.domain_id)
+            self._owns_rclpy = True
+
+        self._setup_node()
+        self._watchdog_task = asyncio.create_task(self._watchdog())
+
+    async def _watchdog(self) -> None:
+        delay = self._reconnect_delay
+        while True:
+            await asyncio.sleep(2.0)
+
+            if self._status == "disconnected":
+                continue
+
+            now = time.monotonic()
+
+            if self._status == "connecting":
+                if now - self._connect_time > self._watchdog_timeout:
+                    logger.warning(
+                        "No observations received after %.1fs, reconnecting...",
+                        now - self._connect_time,
+                    )
+                    self._teardown_node()
+                    await asyncio.sleep(delay)
+                    delay = min(delay * 2, self._max_reconnect_delay)
+                    self._setup_node()
+                continue
+
+            elapsed = now - self._last_obs_time
+            if elapsed > self._watchdog_timeout:
+                logger.warning(
+                    "No observations for %.1fs (timeout=%.1fs), reconnecting...",
+                    elapsed,
+                    self._watchdog_timeout,
+                )
+                self._teardown_node()
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, self._max_reconnect_delay)
+                self._setup_node()
+            else:
+                delay = self._reconnect_delay
 
     def _spin(self):
         while (executor := self._executor) is not None:
@@ -103,6 +177,13 @@ class ROS2Bridge:
     def _enqueue_observation(self):
         if self._loop is None or not self._latest_joint_positions:
             return
+
+        self._last_obs_time = time.monotonic()
+
+        if self._status == "connecting":
+            self._status = "connected"
+            logger.info("First observation received, status=connected")
+
         obs = Observation(
             step=self._step,
             cameras=dict(self._latest_cameras),
@@ -127,7 +208,6 @@ class ROS2Bridge:
 
     async def get_observation(self) -> Observation:
         obs = await self._obs_queue.get()
-        # Drain stale observations, keep the freshest
         while not self._obs_queue.empty():
             obs = self._obs_queue.get_nowait()
         return obs
@@ -174,18 +254,14 @@ class ROS2Bridge:
             self._step = 0
 
     async def close(self) -> None:
-        if self._executor is not None:
-            self._executor.shutdown()
-            self._executor = None
-        if self._spin_thread is not None:
-            self._spin_thread.join(timeout=2.0)
-            self._spin_thread = None
-        if self._node is not None:
-            self._node.destroy_node()
-            self._node = None
+        if self._watchdog_task is not None:
+            self._watchdog_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._watchdog_task
+            self._watchdog_task = None
+        self._teardown_node()
         if self._owns_rclpy:
             import rclpy
 
             rclpy.shutdown()
             self._owns_rclpy = False
-        self._status = "disconnected"

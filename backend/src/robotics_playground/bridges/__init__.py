@@ -11,5 +11,5 @@ def create_bridge(config: PlaygroundConfig) -> RobotBridge:
     if config.bridge.type == "ros2":
         from robotics_playground.bridges.ros2_bridge import ROS2Bridge
 
-        return ROS2Bridge(config.ros2)
+        return ROS2Bridge(config.ros2, config.bridge)
     raise ValueError(f"Unknown bridge type: {config.bridge.type!r} (expected 'mock' or 'ros2')")

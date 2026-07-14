@@ -20,6 +20,9 @@ class RerunConfig(BaseModel):
 
 class BridgeConfig(BaseModel):
     type: str = "mock"
+    watchdog_timeout: float = 10.0
+    reconnect_delay: float = 2.0
+    max_reconnect_delay: float = 30.0
 
 
 class ROS2Config(BaseModel):

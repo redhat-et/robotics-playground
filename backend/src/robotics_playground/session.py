@@ -28,12 +28,14 @@ class Session:
         adapter: EmbodimentAdapter,
         rerun_logger: RerunLogger,
         action_horizon: int = 4,
+        observation_timeout: float = 10.0,
     ):
         self._bridge = bridge
         self._policy = policy
         self._adapter = adapter
         self._logger = rerun_logger
         self._action_horizon = action_horizon
+        self._observation_timeout = observation_timeout
         self._task: asyncio.Task | None = None
         self._instruction: str = DEFAULT_INSTRUCTION
         self._state: str = "idle"
@@ -256,7 +258,17 @@ class Session:
                 for action in action_chunk[: self._action_horizon]:
                     await self._bridge.send_action(action)
                     await self._bridge.sim_control("step")
-                    obs = await self._bridge.get_observation()
+                    try:
+                        obs = await asyncio.wait_for(
+                            self._bridge.get_observation(),
+                            timeout=self._observation_timeout,
+                        )
+                    except TimeoutError:
+                        if self._bridge.bridge_status != "connected":
+                            logger.error("Bridge disconnected during action execution")
+                            self._state = "error"
+                            return
+                        continue
                     display_step += 1
                     self._step = display_step
                     self._logger.log_observation(obs, display_step, cameras=False)
