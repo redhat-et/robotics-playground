@@ -56,6 +56,10 @@ CAM_WIDTH = 320
 CAM_HEIGHT = 180
 CAM_UPDATE_PERIOD = 0.0
 
+# Publish throttling for play mode (step-on-demand always publishes)
+JOINT_PUBLISH_DECIMATION = 5   # ~30 Hz at 150 Hz physics
+CAMERA_PUBLISH_DECIMATION = 10  # ~15 Hz at 150 Hz physics
+
 CAMERA_CONFIGS = {
     "wrist": CameraCfg(
         prim_path="/World/Robot/panda_hand/wrist_cam",
@@ -242,12 +246,12 @@ def main():
 
     node.create_subscription(JointState, "/joint_commands", joint_command_cb, 10)
 
-    # Sim control: step-only mode — sim only advances when explicitly stepped
-    # Uses std_msgs/Int32 topics instead of custom services so both sides
-    # work without compiled simulation_interfaces IDL.
+    # Sim control: default to playing (realtime mode).
+    # Backend can pause/resume/step via Int32 topics.
     from std_msgs.msg import Int32
 
     sim_playing = threading.Event()
+    sim_playing.set()
     steps_requested = threading.Event()
     pending_steps = [0]
     steps_lock = threading.Lock()
@@ -325,38 +329,50 @@ def main():
 
             count += 1
 
-            pos = franka.data.joint_pos[0].cpu().numpy()
-            vel = franka.data.joint_vel[0].cpu().numpy()
-            try:
-                eff = franka.data.applied_torque[0].cpu().numpy()
-            except (AttributeError, RuntimeError):
-                eff = np.zeros_like(pos)
+            # Throttle publishing in play mode; step-on-demand always publishes
+            publish_joints = (
+                not sim_playing.is_set()
+                or count % JOINT_PUBLISH_DECIMATION == 0
+            )
+            publish_cameras = (
+                not sim_playing.is_set()
+                or count % CAMERA_PUBLISH_DECIMATION == 0
+            )
 
-            sim_time = count * sim_dt
-            sec = int(sim_time)
-            nsec = int((sim_time - sec) * 1e9)
+            if publish_joints:
+                pos = franka.data.joint_pos[0].cpu().numpy()
+                vel = franka.data.joint_vel[0].cpu().numpy()
+                try:
+                    eff = franka.data.applied_torque[0].cpu().numpy()
+                except (AttributeError, RuntimeError):
+                    eff = np.zeros_like(pos)
 
-            js = JointState()
-            js.header.stamp = Time(sec=sec, nanosec=nsec)
-            js.name = joint_names
-            js.position = pos.tolist()
-            js.velocity = vel.tolist()
-            js.effort = eff.tolist()
-            joint_pub.publish(js)
+                sim_time = count * sim_dt
+                sec = int(sim_time)
+                nsec = int((sim_time - sec) * 1e9)
 
-            clk = Clock()
-            clk.clock = Time(sec=sec, nanosec=nsec)
-            clock_pub.publish(clk)
+                js = JointState()
+                js.header.stamp = Time(sec=sec, nanosec=nsec)
+                js.name = joint_names
+                js.position = pos.tolist()
+                js.velocity = vel.tolist()
+                js.effort = eff.tolist()
+                joint_pub.publish(js)
 
-            for name, cam in cameras.items():
-                frame_idx = cam.frame[0].item()
-                if frame_idx > last_cam_frame[name]:
-                    last_cam_frame[name] = frame_idx
-                    rgb = cam.data.output["rgb"][0].cpu().numpy()
-                    if rgb.shape[2] == 4:
-                        rgb = rgb[:, :, :3].copy()
-                    msg = numpy_to_image_msg(Image, Time, rgb, sec, nsec)
-                    cam_pubs[name].publish(msg)
+                clk = Clock()
+                clk.clock = Time(sec=sec, nanosec=nsec)
+                clock_pub.publish(clk)
+
+            if publish_cameras:
+                for name, cam in cameras.items():
+                    frame_idx = cam.frame[0].item()
+                    if frame_idx > last_cam_frame[name]:
+                        last_cam_frame[name] = frame_idx
+                        rgb = cam.data.output["rgb"][0].cpu().numpy()
+                        if rgb.shape[2] == 4:
+                            rgb = rgb[:, :, :3].copy()
+                        msg = numpy_to_image_msg(Image, Time, rgb, sec, nsec)
+                        cam_pubs[name].publish(msg)
 
             if count % 5000 == 0:
                 cam_frames = {n: last_cam_frame[n] for n in cameras}
