@@ -332,7 +332,17 @@ data:
 
                 count += 1
 
-                if count % 2 == 0:
+                # Throttle publishing in play mode; step-on-demand always publishes
+                publish_joints = (
+                    not sim_playing.is_set()
+                    or count % 2 == 0
+                )
+                publish_cameras = (
+                    not sim_playing.is_set()
+                    or count % CAM_PUBLISH_INTERVAL == 0
+                )
+
+                if publish_joints:
                     pos = franka.data.joint_pos[0].cpu().numpy()
                     vel = franka.data.joint_vel[0].cpu().numpy()
                     try:
@@ -356,17 +366,16 @@ data:
                     clk.clock = Time(sec=sec, nanosec=nsec)
                     clock_pub.publish(clk)
 
-                    # Publish camera images at throttled rate
-                    if count % CAM_PUBLISH_INTERVAL == 0:
-                        for name, cam in cameras.items():
-                            frame_idx = cam.frame[0].item()
-                            if frame_idx > last_cam_frame[name]:
-                                last_cam_frame[name] = frame_idx
-                                rgb = cam.data.output["rgb"][0].cpu().numpy()
-                                if rgb.shape[2] == 4:
-                                    rgb = rgb[:, :, :3].copy()
-                                msg = numpy_to_image_msg(Image, Time, rgb, sec, nsec)
-                                cam_pubs[name].publish(msg)
+                if publish_cameras:
+                    for name, cam in cameras.items():
+                        frame_idx = cam.frame[0].item()
+                        if frame_idx > last_cam_frame[name]:
+                            last_cam_frame[name] = frame_idx
+                            rgb = cam.data.output["rgb"][0].cpu().numpy()
+                            if rgb.shape[2] == 4:
+                                rgb = rgb[:, :, :3].copy()
+                            msg = numpy_to_image_msg(Image, Time, rgb, sec, nsec)
+                            cam_pubs[name].publish(msg)
 
             if count % 5000 == 0:
                 cam_frames = {n: last_cam_frame[n] for n in cameras}
