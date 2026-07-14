@@ -52,9 +52,13 @@ async def _observation_logger(
                 step = 0
                 was_active = False
 
+            logger.info("obs_logger: stepping sim")
             await bridge.sim_control("step")
+            logger.info("obs_logger: waiting for observation")
             obs = await asyncio.wait_for(bridge.get_observation(), timeout=2.0)
+            logger.info("obs_logger: got obs, logging to rerun (step=%d)", step)
             await asyncio.to_thread(rerun_logger.log_observation, obs, step)
+            logger.info("obs_logger: rerun done")
             step += 1
             await asyncio.sleep(0.5)
         except TimeoutError:
