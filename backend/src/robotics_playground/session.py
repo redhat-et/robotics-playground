@@ -215,8 +215,22 @@ class Session:
                     self._instruction,
                     list(openpi_obs.keys()),
                 )
+
+                async def _keep_sim_alive():
+                    while True:
+                        await self._bridge.sim_control("step")
+                        with contextlib.suppress(TimeoutError):
+                            await asyncio.wait_for(self._bridge.get_observation(), timeout=2.0)
+                        await asyncio.sleep(0.5)
+
+                keepalive = asyncio.create_task(_keep_sim_alive())
                 t0 = time.monotonic()
-                raw_action = await self._policy.infer(openpi_obs)
+                try:
+                    raw_action = await self._policy.infer(openpi_obs)
+                finally:
+                    keepalive.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await keepalive
                 inference_ms = (time.monotonic() - t0) * 1000
                 logger.info(
                     "Inference returned in %.1fms, type=%s",
