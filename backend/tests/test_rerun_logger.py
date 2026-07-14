@@ -214,11 +214,11 @@ def test_log_observation_does_not_block_caller(mock_rr):
     def capture_thread(*args, **kwargs):
         log_threads.append(threading.current_thread().ident)
 
-    mock_rr.log.side_effect = capture_thread
-
     logger = RerunLogger()
     logger.start()
     logger.flush()
+
+    mock_rr.log.side_effect = capture_thread
 
     obs = {
         "step": 0,

@@ -78,37 +78,39 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     )
     rerun_logger.start()
 
-    bridge = create_bridge(config)
-    await bridge.start()
-    logger.info("Bridge started: %s", bridge.bridge_status)
-
-    policy = create_policy(config)
-    adapter = EmbodimentAdapter(config.policy.embodiment)
-    session = Session(
-        bridge=bridge,
-        policy=policy,
-        adapter=adapter,
-        rerun_logger=rerun_logger,
-        action_horizon=config.policy.action_horizon,
-    )
-
-    stop_logger = asyncio.Event()
-    obs_logger_task = asyncio.create_task(
-        _observation_logger(bridge, session, rerun_logger, stop_logger)
-    )
-
-    app.state.bridge = bridge
-    app.state.rerun_logger = rerun_logger
-    app.state.session = session
     try:
-        yield
+        bridge = create_bridge(config)
+        await bridge.start()
+        logger.info("Bridge started: %s", bridge.bridge_status)
+
+        policy = create_policy(config)
+        adapter = EmbodimentAdapter(config.policy.embodiment)
+        session = Session(
+            bridge=bridge,
+            policy=policy,
+            adapter=adapter,
+            rerun_logger=rerun_logger,
+            action_horizon=config.policy.action_horizon,
+        )
+
+        stop_logger = asyncio.Event()
+        obs_logger_task = asyncio.create_task(
+            _observation_logger(bridge, session, rerun_logger, stop_logger)
+        )
+
+        app.state.bridge = bridge
+        app.state.rerun_logger = rerun_logger
+        app.state.session = session
+        try:
+            yield
+        finally:
+            await session.stop()
+            stop_logger.set()
+            obs_logger_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await obs_logger_task
+            await bridge.close()
     finally:
-        await session.stop()
-        stop_logger.set()
-        obs_logger_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await obs_logger_task
-        await bridge.close()
         rerun_logger.shutdown()
 
 
