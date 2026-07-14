@@ -268,6 +268,8 @@ class Session:
                             logger.error("Bridge disconnected during action execution")
                             self._state = "error"
                             return
+                        if not self._paused.is_set() or stepping:
+                            break
                         continue
                     display_step += 1
                     self._step = display_step

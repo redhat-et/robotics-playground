@@ -11,9 +11,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from robotics_playground.bridges.protocol import Action, Observation
+from robotics_playground.config import BridgeConfig
 
 if TYPE_CHECKING:
-    from robotics_playground.config import BridgeConfig, ROS2Config
+    from robotics_playground.config import ROS2Config
 
 logger = logging.getLogger(__name__)
 
@@ -21,13 +22,10 @@ logger = logging.getLogger(__name__)
 class ROS2Bridge:
     def __init__(self, config: ROS2Config, bridge_config: BridgeConfig | None = None):
         self._config = config
-        self._watchdog_timeout = 10.0
-        self._reconnect_delay = 2.0
-        self._max_reconnect_delay = 30.0
-        if bridge_config is not None:
-            self._watchdog_timeout = bridge_config.watchdog_timeout
-            self._reconnect_delay = bridge_config.reconnect_delay
-            self._max_reconnect_delay = bridge_config.max_reconnect_delay
+        bc = bridge_config or BridgeConfig()
+        self._watchdog_timeout = bc.watchdog_timeout
+        self._reconnect_delay = bc.reconnect_delay
+        self._max_reconnect_delay = bc.max_reconnect_delay
 
         self._node = None
         self._executor = None
@@ -135,31 +133,34 @@ class ROS2Bridge:
 
             now = time.monotonic()
 
-            if self._status == "connecting":
-                if now - self._connect_time > self._watchdog_timeout:
+            try:
+                if self._status == "connecting":
+                    if now - self._connect_time > self._watchdog_timeout:
+                        logger.warning(
+                            "No observations received after %.1fs, reconnecting...",
+                            now - self._connect_time,
+                        )
+                        self._teardown_node()
+                        await asyncio.sleep(delay)
+                        delay = min(delay * 2, self._max_reconnect_delay)
+                        self._setup_node()
+                    continue
+
+                elapsed = now - self._last_obs_time
+                if elapsed > self._watchdog_timeout:
                     logger.warning(
-                        "No observations received after %.1fs, reconnecting...",
-                        now - self._connect_time,
+                        "No observations for %.1fs (timeout=%.1fs), reconnecting...",
+                        elapsed,
+                        self._watchdog_timeout,
                     )
                     self._teardown_node()
                     await asyncio.sleep(delay)
                     delay = min(delay * 2, self._max_reconnect_delay)
                     self._setup_node()
-                continue
-
-            elapsed = now - self._last_obs_time
-            if elapsed > self._watchdog_timeout:
-                logger.warning(
-                    "No observations for %.1fs (timeout=%.1fs), reconnecting...",
-                    elapsed,
-                    self._watchdog_timeout,
-                )
-                self._teardown_node()
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, self._max_reconnect_delay)
-                self._setup_node()
-            else:
-                delay = self._reconnect_delay
+                else:
+                    delay = self._reconnect_delay
+            except Exception:
+                logger.exception("Watchdog reconnect attempt failed; will retry")
 
     def _spin(self):
         while (executor := self._executor) is not None:
