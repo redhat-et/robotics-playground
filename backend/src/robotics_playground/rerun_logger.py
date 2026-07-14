@@ -81,9 +81,18 @@ class RerunLogger:
     def shutdown(self) -> None:
         if self._worker_thread is None:
             return
-        self._queue.put(_SENTINEL)
+        try:
+            self._queue.put_nowait(_SENTINEL)
+        except queue.Full:
+            with contextlib.suppress(queue.Empty):
+                self._queue.get_nowait()
+            with contextlib.suppress(queue.Full):
+                self._queue.put_nowait(_SENTINEL)
         self._worker_thread.join(timeout=5.0)
-        self._worker_thread = None
+        if not self._worker_thread.is_alive():
+            self._worker_thread = None
+        else:
+            logger.warning("Rerun worker thread did not terminate within timeout")
 
     def _build_blueprint(self) -> rrb.Blueprint:
         camera_views = [
@@ -133,31 +142,41 @@ class RerunLogger:
         self._worker_thread.start()
 
         ready = threading.Event()
+        init_error: list[BaseException] = []
         port = self._port
         web_port = self._web_port
         cors = self._cors_allow_origin
         prefix = self._prefix
 
         def _init():
-            rr.init("robotics_playground")
-            blueprint = self._build_blueprint()
-            rr.serve_grpc(
-                grpc_port=port,
-                default_blueprint=blueprint,
-                server_memory_limit="512MiB",
-                cors_allow_origin=cors,
-            )
-            rr.serve_web_viewer(
-                web_port=web_port,
-                open_browser=False,
-            )
-            rr.send_blueprint(blueprint)
-            rr.set_time("step", sequence=0)
-            rr.log(prefix, rr.Clear(recursive=True))
-            ready.set()
+            try:
+                rr.init("robotics_playground")
+                blueprint = self._build_blueprint()
+                rr.serve_grpc(
+                    grpc_port=port,
+                    default_blueprint=blueprint,
+                    server_memory_limit="512MiB",
+                    cors_allow_origin=cors,
+                )
+                rr.serve_web_viewer(
+                    web_port=web_port,
+                    open_browser=False,
+                )
+                rr.send_blueprint(blueprint)
+                rr.set_time("step", sequence=0)
+                rr.log(prefix, rr.Clear(recursive=True))
+            except Exception as exc:
+                init_error.append(exc)
+            finally:
+                ready.set()
 
         self._submit(_init)
-        ready.wait()
+        if not ready.wait(timeout=30.0):
+            self.shutdown()
+            raise RuntimeError("Rerun initialization timed out")
+        if init_error:
+            self.shutdown()
+            raise RuntimeError("Rerun initialization failed") from init_error[0]
         self._initialized = True
 
     def clear(self):
@@ -180,7 +199,7 @@ class RerunLogger:
         effective_step = self._step_offset + step
         self._last_step = step
 
-        cameras_data = dict(obs["cameras"]) if cameras else {}
+        cameras_data = {k: v.copy() for k, v in obs["cameras"].items()} if cameras else {}
         joints = list(obs["joint_positions"])
         prefix = self._prefix
 
