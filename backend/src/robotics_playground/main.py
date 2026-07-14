@@ -38,7 +38,7 @@ async def _observation_logger(
     was_active = False
     while not stop_event.is_set():
         try:
-            if bridge.bridge_status != "connected":
+            if bridge.bridge_status not in ("connected", "connecting"):
                 await asyncio.sleep(0.5)
                 continue
 
