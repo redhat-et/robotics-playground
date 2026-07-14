@@ -109,6 +109,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         with contextlib.suppress(asyncio.CancelledError):
             await obs_logger_task
         await bridge.close()
+        rerun_logger.shutdown()
 
 
 app = FastAPI(title="Robotics Playground", lifespan=lifespan)
