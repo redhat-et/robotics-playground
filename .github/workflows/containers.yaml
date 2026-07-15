@@ -30,15 +30,19 @@ jobs:
       - name: Set short SHA
         run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
 
+      - name: Login to Quay.io
+        run: podman login -u ${{ secrets.QUAY_USERNAME }} -p ${{ secrets.QUAY_PASSWORD }} quay.io
+
+      - name: Pull cache source
+        run: podman pull --platform linux/${{ matrix.arch }} ${IMAGE_UI}:latest || true
+
       - name: Build frontend image
         run: |
           podman build \
+            --layers \
+            --cache-from ${IMAGE_UI}:latest \
             -t ${IMAGE_UI}:${{ matrix.arch }}-${SHORT_SHA} \
             -f frontend/Containerfile frontend/
-
-      - name: Login to Quay.io
-        if: github.event_name == 'push'
-        run: podman login -u ${{ secrets.QUAY_USERNAME }} -p ${{ secrets.QUAY_PASSWORD }} quay.io
 
       - name: Push per-arch images
         if: github.event_name == 'push'
@@ -67,15 +71,19 @@ jobs:
       - name: Set short SHA
         run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
 
+      - name: Login to Quay.io
+        run: podman login -u ${{ secrets.QUAY_USERNAME }} -p ${{ secrets.QUAY_PASSWORD }} quay.io
+
+      - name: Pull cache source
+        run: podman pull --platform linux/${{ matrix.arch }} ${IMAGE_BACKEND}:latest || true
+
       - name: Build backend image
         run: |
           podman build \
+            --layers \
+            --cache-from ${IMAGE_BACKEND}:latest \
             -t ${IMAGE_BACKEND}:${{ matrix.arch }}-${SHORT_SHA} \
             -f backend/Containerfile backend/
-
-      - name: Login to Quay.io
-        if: github.event_name == 'push'
-        run: podman login -u ${{ secrets.QUAY_USERNAME }} -p ${{ secrets.QUAY_PASSWORD }} quay.io
 
       - name: Push per-arch images
         if: github.event_name == 'push'
