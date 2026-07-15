@@ -45,6 +45,7 @@ module.exports = {
     new HtmlWebpackPlugin({ template: './src/index.html' }),
     new CopyWebpackPlugin({
       patterns: [
+        { from: 'node_modules/@rerun-io/web-viewer/index.js', to: 'rerun/' },
         { from: 'node_modules/@rerun-io/web-viewer/re_viewer.js', to: 'rerun/' },
         { from: 'node_modules/@rerun-io/web-viewer/re_viewer_bg.wasm', to: 'rerun/' },
         { from: 'public/rerun-viewer.html', to: 'rerun/index.html' },
