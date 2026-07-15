@@ -21,14 +21,19 @@ spec:
       containers:
         - name: nginx
           image: quay.io/redhat-et/robotics-playground-ui:latest
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
           ports:
-            - name: http
+            - name: http-mf
               containerPort: 8080
               protocol: TCP
           readinessProbe:
             httpGet:
               path: /remoteEntry.js
-              port: http
+              port: http-mf
             initialDelaySeconds: 2
             periodSeconds: 10
           resources:
@@ -37,3 +42,7 @@ spec:
               memory: 32Mi
             limits:
               memory: 64Mi
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: robotics-playground-nginx
