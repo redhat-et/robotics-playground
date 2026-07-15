@@ -89,10 +89,18 @@ async def _heartbeat(bridge, session: Session, stop_event: asyncio.Event):
             logger.exception("Heartbeat error")
 
 
+def _extract_origin(url: str) -> str:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    return f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else url
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     rerun_viewer_url = os.environ.get("RERUN_VIEWER_URL", "")
-    cors_origins = [rerun_viewer_url] if rerun_viewer_url else None
+    cors_origin = _extract_origin(rerun_viewer_url) if rerun_viewer_url else ""
+    cors_origins = [cors_origin] if cors_origin else None
     rerun_logger = RerunLogger(
         port=config.rerun.grpc_port,
         camera_names=list(config.ros2.cameras.keys()) or None,
