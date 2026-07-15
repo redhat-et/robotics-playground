@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 
 DEFAULT_INSTRUCTION = "Stay still and do not move."
+ACTION_INTERVAL = 0.5  # seconds between waypoints — PD controller convergence time
 
 
 class Session:
@@ -129,6 +130,14 @@ class Session:
         elif action == "reset":
             await self.reset()
 
+    async def _dispatch_actions(self, horizon, start_step):
+        for i, action in enumerate(horizon):
+            await self._bridge.send_action(action)
+            self._step = start_step + i + 1
+            if not self._paused.is_set():
+                break
+            await asyncio.sleep(ACTION_INTERVAL)
+
     async def _run_loop(self):
         try:
             self._logger.clear()
@@ -176,6 +185,7 @@ class Session:
                 [round(p, 4) for p in obs.get("joint_positions", [])[:7]],
             )
             display_step = 0
+            cycle = 0
 
             while True:
                 # Wait for unpause
@@ -213,29 +223,22 @@ class Session:
                     [round(p, 4) for p in obs["joint_positions"][:7]],
                 )
                 openpi_obs = self._adapter.observation_to_openpi(obs, self._instruction)
+                cycle += 1
                 logger.info(
-                    "Calling policy.infer() at step %s, instruction=%r",
+                    "Inference cycle %d: starting at step %d, instruction=%r",
+                    cycle,
                     self._step,
                     self._instruction,
                 )
 
-                async def _keep_sim_alive():
-                    while True:
-                        await self._bridge.sim_control("step")
-                        with contextlib.suppress(TimeoutError):
-                            await asyncio.wait_for(self._bridge.get_observation(), timeout=2.0)
-                        await asyncio.sleep(0.5)
-
-                keepalive = asyncio.create_task(_keep_sim_alive())
                 t0 = time.monotonic()
-                try:
-                    raw_action = await self._policy.infer(openpi_obs)
-                finally:
-                    keepalive.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await keepalive
+                raw_action = await self._policy.infer(openpi_obs)
                 inference_ms = (time.monotonic() - t0) * 1000
-                logger.info("Inference returned in %.1fms", inference_ms)
+                logger.info(
+                    "Inference cycle %d: completed in %.1fms",
+                    cycle,
+                    inference_ms,
+                )
 
                 # Normalize response: server may return a raw ndarray or a dict
                 if isinstance(raw_action, np.ndarray):
@@ -263,21 +266,20 @@ class Session:
                 # Log physical trajectory path
                 self._logger.log_action_trajectory(action_chunk, display_step)
 
-                # Send actions spaced apart so PD controller can track each
-                # waypoint before receiving the next target.
+                # Dispatch actions synchronously, then observe the result
                 horizon = action_chunk[: self._action_horizon]
-                action_interval = inference_ms / 1000 / max(len(horizon), 1)
-                for action in horizon:
-                    await self._bridge.send_action(action)
-                    display_step += 1
-                    self._step = display_step
-
-                    if not self._paused.is_set() or stepping:
-                        break
-                    await asyncio.sleep(action_interval)
+                logger.info(
+                    "Inference cycle %d: dispatching %d actions at %.1fs intervals",
+                    cycle,
+                    len(horizon),
+                    ACTION_INTERVAL,
+                )
+                await self._dispatch_actions(horizon, display_step)
+                display_step += len(horizon)
 
                 if stepping:
                     self._paused.clear()
+
         except asyncio.CancelledError:
             raise
         except Exception:
