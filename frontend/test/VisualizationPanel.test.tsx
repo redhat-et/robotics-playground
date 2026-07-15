@@ -28,7 +28,7 @@ describe('VisualizationPanel', () => {
     });
 
     const iframe = document.querySelector('iframe');
-    expect(iframe?.src).toContain(':9090');
+    expect(iframe?.src).toContain('/rerun/');
     expect(iframe?.src).toContain('url=');
     expect(iframe?.src).toContain('9876');
   });

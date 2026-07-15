@@ -34,13 +34,11 @@ class RerunLogger:
     def __init__(
         self,
         port: int = 9876,
-        web_port: int = 9090,
         policy_index: int = 0,
         camera_names: list[str] | None = None,
         cors_allow_origin: list[str] | None = None,
     ):
         self._port = port
-        self._web_port = web_port
         self._cors_allow_origin = cors_allow_origin
         self._prefix = f"session/policy_{policy_index}"
         names = camera_names or ["exterior_1", "exterior_2", "wrist"]
@@ -144,7 +142,6 @@ class RerunLogger:
         ready = threading.Event()
         init_error: list[BaseException] = []
         port = self._port
-        web_port = self._web_port
         cors = self._cors_allow_origin
         prefix = self._prefix
 
@@ -157,10 +154,6 @@ class RerunLogger:
                     default_blueprint=blueprint,
                     server_memory_limit="512MiB",
                     cors_allow_origin=cors,
-                )
-                rr.serve_web_viewer(
-                    web_port=web_port,
-                    open_browser=False,
                 )
                 rr.send_blueprint(blueprint)
                 rr.set_time("step", sequence=0)

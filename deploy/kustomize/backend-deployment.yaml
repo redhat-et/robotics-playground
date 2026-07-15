@@ -25,9 +25,6 @@ spec:
             - name: http
               containerPort: 8000
               protocol: TCP
-            - name: rerun-web
-              containerPort: 9090
-              protocol: TCP
             - name: rerun-grpc
               containerPort: 9876
               protocol: TCP

@@ -23,7 +23,7 @@ function buildRerunUrl(viewerBase: string, grpcBase: string): string {
 
 function buildLocalRerunUrl(): string {
   const host = window.location.hostname;
-  return buildRerunUrl(`http://${host}:9090`, `http://${host}:9876`);
+  return buildRerunUrl(`${window.location.origin}/rerun`, `http://${host}:9876`);
 }
 
 const VisualizationPanel: React.FC<VisualizationPanelProps> = ({ connected }) => {
