@@ -169,6 +169,11 @@ class ROS2Bridge:
     def _spin(self):
         while (executor := self._executor) is not None:
             executor.spin_once(timeout_sec=0.1)
+            # Yield the GIL so the uvloop event loop can run.
+            # spin_once returns immediately when callbacks are pending
+            # (the timeout only applies to the idle wait), so without
+            # this sleep the loop busy-spins and starves the event loop.
+            time.sleep(0.001)
 
     def _handle_image(self, camera_name: str, msg):
         logger.debug("Image received: %s (%dx%d)", camera_name, msg.width, msg.height)
