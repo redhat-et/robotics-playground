@@ -47,6 +47,8 @@ class ROS2Bridge:
         self._connect_time: float = 0.0
         self._watchdog_task: asyncio.Task | None = None
         self._sim_paused = False
+        self._enqueue_interval: float = 0.033  # ~30 Hz cap on cross-thread handoff
+        self._last_enqueue_time: float = 0.0
 
     @property
     def bridge_status(self) -> str:
@@ -187,11 +189,16 @@ class ROS2Bridge:
         if self._loop is None or not self._latest_joint_positions:
             return
 
-        self._last_obs_time = time.monotonic()
+        now = time.monotonic()
+        self._last_obs_time = now
 
         if self._status == "connecting":
             self._status = "connected"
             logger.info("First observation received, status=connected")
+
+        if now - self._last_enqueue_time < self._enqueue_interval:
+            return
+        self._last_enqueue_time = now
 
         obs = Observation(
             step=self._step,

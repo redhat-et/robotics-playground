@@ -94,6 +94,7 @@ async def test_ros2_bridge_observation_from_callbacks(mock_rclpy):
     config = ROS2Config(cameras={"wrist": "/cam/wrist"})
     bridge = ROS2Bridge(config)
     await bridge.start()
+    bridge._enqueue_interval = 0
 
     bridge._on_joint_state_received([0.1, 0.2, 0.3], [0.0, 0.0, 0.0])
     image_data = np.zeros((240, 320, 3), dtype=np.uint8)
