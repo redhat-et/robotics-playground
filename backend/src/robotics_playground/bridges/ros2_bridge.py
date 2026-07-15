@@ -57,8 +57,14 @@ class ROS2Bridge:
     def _setup_node(self) -> None:
         from rclpy.executors import SingleThreadedExecutor
         from rclpy.node import Node
+        from rclpy.qos import QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import Image, JointState
         from std_msgs.msg import Int32
+
+        sensor_qos = QoSProfile(
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+        )
 
         self._node = Node("robotics_playground_bridge")
         self._executor = SingleThreadedExecutor()
@@ -69,14 +75,14 @@ class ROS2Bridge:
                 Image,
                 topic,
                 lambda msg, n=name: self._handle_image(n, msg),
-                10,
+                sensor_qos,
             )
 
         self._node.create_subscription(
             JointState,
             self._config.joint_state_topic,
             self._handle_joint_state,
-            10,
+            sensor_qos,
         )
 
         self._publisher = self._node.create_publisher(
