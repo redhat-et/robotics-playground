@@ -3,7 +3,7 @@ FROM docker.io/ros:jazzy AS builder
 WORKDIR /build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-dev gcc && \
+    python3.12-venv python3-dev gcc && \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
