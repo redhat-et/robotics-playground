@@ -130,13 +130,16 @@ class Session:
         elif action == "reset":
             await self.reset()
 
-    async def _dispatch_actions(self, horizon, start_step):
+    async def _dispatch_actions(self, horizon, start_step) -> int:
+        dispatched = 0
         for i, action in enumerate(horizon):
-            await self._bridge.send_action(action)
-            self._step = start_step + i + 1
-            if not self._paused.is_set():
+            if i > 0 and not self._paused.is_set():
                 break
+            await self._bridge.send_action(action)
+            dispatched = i + 1
+            self._step = start_step + dispatched
             await asyncio.sleep(ACTION_INTERVAL)
+        return dispatched
 
     async def _run_loop(self):
         try:
@@ -274,8 +277,8 @@ class Session:
                     len(horizon),
                     ACTION_INTERVAL,
                 )
-                await self._dispatch_actions(horizon, display_step)
-                display_step += len(horizon)
+                dispatched = await self._dispatch_actions(horizon, display_step)
+                display_step += dispatched
 
                 if stepping:
                     self._paused.clear()
