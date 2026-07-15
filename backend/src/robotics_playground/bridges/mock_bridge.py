@@ -50,6 +50,11 @@ class MockBridge:
         await asyncio.sleep(0.01)
         return obs
 
+    async def get_latest_observation(self) -> Observation | None:
+        if self._status == "disconnected":
+            return None
+        return self._make_observation()
+
     async def observation_stream(self) -> AsyncIterator[Observation]:
         while True:
             yield await self.get_observation()

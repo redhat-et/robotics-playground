@@ -236,6 +236,40 @@ async def test_ros2_bridge_accepts_bridge_config(mock_rclpy):
 
 
 @pytest.mark.anyio
+async def test_ros2_bridge_get_latest_observation_returns_none_before_callbacks(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    obs = await bridge.get_latest_observation()
+    assert obs is None
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_ros2_bridge_get_latest_observation_returns_data_after_callbacks(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+    bridge._enqueue_interval = 0
+
+    bridge._on_joint_state_received([0.1, 0.2, 0.3], [0.0, 0.0, 0.0])
+    image_data = np.zeros((240, 320, 3), dtype=np.uint8)
+    bridge._on_image_received("wrist", image_data)
+
+    obs = await bridge.get_latest_observation()
+    assert obs is not None
+    assert "wrist" in obs["cameras"]
+    assert obs["joint_positions"] == [0.1, 0.2, 0.3]
+    assert obs["joint_velocities"] == [0.0, 0.0, 0.0]
+    await bridge.close()
+
+
+@pytest.mark.anyio
 async def test_ros2_bridge_watchdog_cancels_on_close(mock_rclpy):
     from robotics_playground.bridges.ros2_bridge import ROS2Bridge
     from robotics_playground.config import ROS2Config
