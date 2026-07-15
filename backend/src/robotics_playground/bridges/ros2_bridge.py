@@ -234,6 +234,16 @@ class ROS2Bridge:
             obs = self._obs_queue.get_nowait()
         return obs
 
+    async def get_latest_observation(self) -> Observation | None:
+        if not self._latest_joint_positions or not self._latest_cameras:
+            return None
+        return Observation(
+            step=self._step,
+            cameras=dict(self._latest_cameras),
+            joint_positions=list(self._latest_joint_positions),
+            joint_velocities=list(self._latest_joint_velocities),
+        )
+
     async def observation_stream(self) -> AsyncIterator[Observation]:
         while True:
             obs = await self._obs_queue.get()
