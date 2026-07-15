@@ -59,6 +59,52 @@ async def test_openpi_client_infer_raises_on_string_response():
 
 
 @pytest.mark.anyio
+async def test_openpi_client_auto_detects_openpi_wire_format():
+    from robotics_playground.policy.openpi_client import OpenPIClient
+
+    openpi_packb = msgpack_numpy.make_packb(msgpack_numpy.OPENPI)
+
+    mock_ws = MagicMock()
+    mock_ws.recv.side_effect = [
+        openpi_packb({"model": "pi05"}),
+        openpi_packb({"actions": np.zeros((15, 8), dtype=np.float32)}),
+    ]
+
+    with patch("websockets.sync.client.connect", return_value=mock_ws):
+        client = OpenPIClient("ws://localhost:8000/")
+        await client.connect()
+
+        assert client.wire_format == msgpack_numpy.OPENPI
+
+        result = await client.infer({"prompt": "test"})
+        assert "actions" in result
+        assert result["actions"].shape == (15, 8)
+
+        await client.close()
+
+
+@pytest.mark.anyio
+async def test_openpi_client_auto_detects_vllm_omni_wire_format():
+    from robotics_playground.policy.openpi_client import OpenPIClient
+
+    mock_ws = MagicMock()
+    mock_ws.recv.side_effect = [
+        msgpack_numpy.packb({"model": "dreamzero"}),
+        msgpack_numpy.packb({"actions": np.zeros((10, 8), dtype=np.float32)}),
+    ]
+
+    with patch("websockets.sync.client.connect", return_value=mock_ws):
+        client = OpenPIClient("ws://localhost:8080/v1/realtime/robot/openpi")
+        await client.connect()
+
+        assert client.wire_format == msgpack_numpy.VLLM_OMNI
+
+        result = await client.infer({"prompt": "test"})
+        assert "actions" in result
+        await client.close()
+
+
+@pytest.mark.anyio
 async def test_openpi_client_reconnects_on_closed_connection():
     from robotics_playground.policy.openpi_client import OpenPIClient
 
