@@ -6,7 +6,8 @@ RUN npm ci
 COPY tsconfig.json webpack.config.js ./
 COPY public/ public/
 COPY src/ src/
-RUN npm run build
+RUN npm run build && \
+    gzip -k -9 dist/rerun/re_viewer_bg.wasm
 
 FROM registry.access.redhat.com/hi/nginx:latest
 
