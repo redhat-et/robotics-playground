@@ -27,4 +27,4 @@ ENV HOME=/app/.home
 
 USER 1001
 
-CMD ["python3", "-m", "uvicorn", "robotics_playground.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python3", "-m", "uvicorn", "robotics_playground.main:app", "--host", "0.0.0.0", "--port", "8000", "--loop", "asyncio"]
