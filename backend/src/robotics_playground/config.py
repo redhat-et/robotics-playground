@@ -15,7 +15,6 @@ class ServerConfig(BaseModel):
 
 class RerunConfig(BaseModel):
     grpc_port: int = 9876
-    web_port: int = 9090
 
 
 class BridgeConfig(BaseModel):

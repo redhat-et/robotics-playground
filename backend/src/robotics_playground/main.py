@@ -95,7 +95,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     cors_origins = [rerun_viewer_url] if rerun_viewer_url else None
     rerun_logger = RerunLogger(
         port=config.rerun.grpc_port,
-        web_port=config.rerun.web_port,
         camera_names=list(config.ros2.cameras.keys()) or None,
         cors_allow_origin=cors_origins,
     )

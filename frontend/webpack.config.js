@@ -1,5 +1,6 @@
 const { ModuleFederationPlugin } = require('@module-federation/enhanced/webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const path = require('path');
 const deps = require('./package.json').dependencies;
 
@@ -42,6 +43,13 @@ module.exports = {
       },
     }),
     new HtmlWebpackPlugin({ template: './src/index.html' }),
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: 'node_modules/@rerun-io/web-viewer/re_viewer.js', to: 'rerun/' },
+        { from: 'node_modules/@rerun-io/web-viewer/re_viewer_bg.wasm', to: 'rerun/' },
+        { from: 'public/rerun-viewer.html', to: 'rerun/index.html' },
+      ],
+    }),
   ],
   devServer: {
     port: 9200,
