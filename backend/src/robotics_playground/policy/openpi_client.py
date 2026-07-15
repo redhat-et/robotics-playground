@@ -16,15 +16,25 @@ CONNECT_TIMEOUT = 30  # seconds — TCP + WebSocket handshake
 RECV_TIMEOUT = 300  # seconds — long inference is normal (22s+), allow for cold starts
 
 
+def _new_executor() -> ThreadPoolExecutor:
+    return ThreadPoolExecutor(max_workers=2, thread_name_prefix="openpi")
+
+
 class OpenPIClient:
     def __init__(self, endpoint: str) -> None:
         self._endpoint = endpoint
         self._ws: websockets.sync.client.ClientConnection | None = None
         self._packer = msgpack_numpy.Packer()
         self._server_metadata: dict = {}
-        self._executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="openpi")
+        self._executor = _new_executor()
+        self._closing = False
 
     async def connect(self) -> None:
+        self._closing = False
+        try:
+            self._executor.submit(lambda: None).cancel()
+        except RuntimeError:
+            self._executor = _new_executor()
         loop = asyncio.get_running_loop()
         self._ws, self._server_metadata = await loop.run_in_executor(
             self._executor, self._connect_sync
@@ -60,6 +70,8 @@ class OpenPIClient:
             logger.error("OpenPI recv() timed out after %ds", RECV_TIMEOUT)
             raise
         except websockets.exceptions.ConnectionClosed:
+            if self._closing:
+                raise
             logger.warning("OpenPI connection lost, reconnecting (attempt 1/1)...")
             try:
                 self._ws, self._server_metadata = self._connect_sync()
@@ -80,6 +92,7 @@ class OpenPIClient:
         pass
 
     async def close(self) -> None:
+        self._closing = True
         if self._ws is not None:
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(self._executor, self._ws.close)
