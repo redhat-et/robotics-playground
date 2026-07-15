@@ -72,10 +72,9 @@ def test_policy_config_defaults():
 
     config = PlaygroundConfig()
     assert config.policy.type == "mock"
-    assert config.policy.endpoint == ""
-    assert config.policy.model_name == "dreamzero"
+    assert config.policy.default_model == ""
+    assert config.policy.models == {}
     assert config.policy.embodiment.joint_names == []
-    assert config.policy.embodiment.image_size == [180, 320]
     assert config.policy.embodiment.gripper_limits == [0.0, 0.04]
 
 
@@ -85,7 +84,14 @@ def test_policy_config_from_dict():
     data = {
         "policy": {
             "type": "openpi",
-            "endpoint": "ws://localhost:8080/v1/realtime/robot/openpi",
+            "default_model": "test-model",
+            "models": {
+                "test-model": {
+                    "name": "Test Model",
+                    "endpoint": "ws://localhost:8080/v1/realtime/robot/openpi",
+                    "action_horizon": 4,
+                }
+            },
             "embodiment": {
                 "joint_names": ["j1", "j2"],
                 "training_order": ["j2", "j1"],
@@ -97,6 +103,12 @@ def test_policy_config_from_dict():
     }
     config = PlaygroundConfig(**data)
     assert config.policy.type == "openpi"
+    assert config.policy.default_model == "test-model"
+    assert "test-model" in config.policy.models
+    assert (
+        config.policy.models["test-model"].endpoint
+        == "ws://localhost:8080/v1/realtime/robot/openpi"
+    )
     assert config.policy.embodiment.joint_names == ["j1", "j2"]
     assert config.policy.embodiment.training_order == ["j2", "j1"]
     assert config.policy.embodiment.camera_mapping == {"wrist": "observation/wrist_image_left"}
@@ -110,3 +122,111 @@ def test_ros2_config_physics_decimation():
 
     config2 = PlaygroundConfig(ros2={"physics_decimation": 5})
     assert config2.ros2.physics_decimation == 5
+
+
+# Tests for new ModelConfig and restructured PolicyConfig
+
+
+def test_model_config_defaults():
+    from robotics_playground.config import ModelConfig
+
+    mc = ModelConfig(endpoint="ws://localhost:8080")
+    assert mc.name == ""
+    assert mc.endpoint == "ws://localhost:8080"
+    assert mc.action_horizon == 4
+    assert mc.camera_mapping is None
+
+
+def test_policy_config_with_models():
+    from robotics_playground.config import ModelConfig, PolicyConfig
+
+    pc = PolicyConfig(
+        type="openpi",
+        default_model="m1",
+        models={
+            "m1": ModelConfig(name="Model 1", endpoint="ws://m1:8080"),
+            "m2": ModelConfig(
+                name="Model 2",
+                endpoint="ws://m2:8080",
+                action_horizon=8,
+                camera_mapping={"cam": "observation/cam"},
+            ),
+        },
+    )
+    assert pc.default_model == "m1"
+    assert len(pc.models) == 2
+    assert pc.models["m2"].action_horizon == 8
+    assert pc.models["m2"].camera_mapping == {"cam": "observation/cam"}
+
+
+def test_embodiment_config_no_image_size():
+    from robotics_playground.config import EmbodimentConfig
+
+    ec = EmbodimentConfig()
+    assert not hasattr(ec, "image_size")
+
+
+def test_policy_config_no_legacy_fields():
+    from robotics_playground.config import PolicyConfig
+
+    pc = PolicyConfig()
+    assert not hasattr(pc, "endpoint")
+    assert not hasattr(pc, "model_name")
+    assert not hasattr(pc, "action_horizon")
+
+
+def test_full_config_from_dict():
+    from robotics_playground.config import EmbodimentConfig, PlaygroundConfig
+
+    data = {
+        "policy": {
+            "type": "openpi",
+            "default_model": "dreamzero-v1",
+            "models": {
+                "dreamzero-v1": {
+                    "name": "DreamZero",
+                    "endpoint": "ws://dreamzero:8080/v1/realtime/robot/openpi",
+                    "action_horizon": 4,
+                },
+                "pi05-v1": {
+                    "name": "pi0.5",
+                    "endpoint": "ws://pi05:8080/",
+                    "action_horizon": 8,
+                },
+            },
+            "embodiment": {
+                "joint_names": ["j1"],
+                "training_order": ["j1"],
+                "joint_limits": {"j1": [-1, 1]},
+                "gripper_joint": "g",
+                "camera_mapping": {"wrist": "observation/wrist_image_left"},
+            },
+        }
+    }
+    cfg = PlaygroundConfig(**data)
+    assert cfg.policy.models["pi05-v1"].action_horizon == 8
+    assert "image_size" not in EmbodimentConfig.model_fields
+
+
+def test_default_model_must_be_in_models():
+    import pytest
+
+    from robotics_playground.config import ModelConfig, PolicyConfig
+
+    with pytest.raises(ValueError, match=r"default_model.*not found"):
+        PolicyConfig(
+            type="openpi",
+            default_model="nonexistent",
+            models={"real-v1": ModelConfig(endpoint="ws://x")},
+        )
+
+
+def test_default_model_empty_is_valid():
+    from robotics_playground.config import ModelConfig, PolicyConfig
+
+    cfg = PolicyConfig(
+        type="openpi",
+        default_model="",
+        models={"real-v1": ModelConfig(endpoint="ws://x")},
+    )
+    assert cfg.default_model == ""

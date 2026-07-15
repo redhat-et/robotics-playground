@@ -20,8 +20,16 @@ data:
 
     policy:
       type: "mock"
-      endpoint: ""
-      model_name: "dreamzero"
+      default_model: "dreamzero-v1"
+      models:
+        dreamzero-v1:
+          name: "DreamZero"
+          endpoint: "ws://dreamzero-predictor/v1/realtime/robot/openpi"
+          action_horizon: 4
+        pi05-v1:
+          name: "pi0.5"
+          endpoint: "ws://pi05-predictor/"
+          action_horizon: 8
       embodiment:
         joint_names:
           - panda_joint1
@@ -53,4 +61,3 @@ data:
           wrist: "observation/wrist_image_left"
           exterior_1: "observation/exterior_image_1_left"
           exterior_2: "observation/exterior_image_2_left"
-        image_size: [180, 320]

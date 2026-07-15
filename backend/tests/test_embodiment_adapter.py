@@ -26,7 +26,6 @@ FRANKA_CONFIG = EmbodimentConfig(
         "wrist": "observation/wrist_image_left",
         "exterior_1": "observation/exterior_image_1_left",
     },
-    image_size=[180, 320],
 )
 
 
@@ -57,14 +56,18 @@ def test_observation_to_openpi_keys():
     assert result["session_id"] == "default"
 
 
-def test_observation_images_resized():
+def test_images_passed_through_raw():
     adapter = EmbodimentAdapter(FRANKA_CONFIG)
-    obs = _make_obs()
+    raw_img = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+    obs = Observation(
+        step=0,
+        cameras={"wrist": raw_img, "exterior_1": raw_img},
+        joint_positions=[0.0] * 7,
+        joint_velocities=[0.0] * 7,
+    )
     result = adapter.observation_to_openpi(obs, "")
-    for key in ["observation/wrist_image_left", "observation/exterior_image_1_left"]:
-        img = result[key]
-        assert img.shape == (180, 320, 3)
-        assert img.dtype == np.uint8
+    assert result["observation/wrist_image_left"].shape == (480, 640, 3)
+    assert np.array_equal(result["observation/wrist_image_left"], raw_img)
 
 
 def test_observation_joint_passthrough():
@@ -86,7 +89,6 @@ def test_observation_joint_reorder():
         gripper_joint="g",
         gripper_limits=[0, 1],
         camera_mapping={},
-        image_size=[224, 224],
     )
     adapter = EmbodimentAdapter(config)
     obs = Observation(
@@ -142,7 +144,6 @@ def test_action_reorder_inverse():
         gripper_joint="g",
         gripper_limits=[0, 1],
         camera_mapping={},
-        image_size=[224, 224],
     )
     adapter = EmbodimentAdapter(config)
     # Action in training order [c, a, b] = [0.3, 0.1, 0.2]
@@ -154,6 +155,20 @@ def test_action_reorder_inverse():
     assert abs(positions[0] - 0.1) < 1e-5
     assert abs(positions[1] - 0.2) < 1e-5
     assert abs(positions[2] - 0.3) < 1e-5
+
+
+def test_camera_mapping_override():
+    override = {"cam_a": "observation/cam_a_custom"}
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, camera_mapping_override=override)
+    assert adapter.camera_names == ["cam_a"]
+    obs = Observation(
+        step=0,
+        cameras={"cam_a": np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)},
+        joint_positions=[0.0] * 7,
+        joint_velocities=[0.0] * 7,
+    )
+    result = adapter.observation_to_openpi(obs, "")
+    assert "observation/cam_a_custom" in result
 
 
 def test_action_clamped_to_joint_limits():

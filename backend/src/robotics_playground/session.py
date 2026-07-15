@@ -8,11 +8,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from robotics_playground.policy import create_policy
+from robotics_playground.policy.embodiment_adapter import EmbodimentAdapter
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from robotics_playground.bridges.protocol import RobotBridge
-    from robotics_playground.policy.embodiment_adapter import EmbodimentAdapter
+    from robotics_playground.config import PolicyConfig
     from robotics_playground.policy.protocol import PolicyClient
     from robotics_playground.rerun_logger import RerunLogger
 
@@ -25,17 +28,17 @@ class Session:
     def __init__(
         self,
         bridge: RobotBridge,
-        policy: PolicyClient,
-        adapter: EmbodimentAdapter,
+        policy_config: PolicyConfig,
         rerun_logger: RerunLogger,
-        action_horizon: int = 4,
         observation_timeout: float = 10.0,
     ):
         self._bridge = bridge
-        self._policy = policy
-        self._adapter = adapter
+        self._policy_config = policy_config
         self._logger = rerun_logger
-        self._action_horizon = action_horizon
+        self._model_id = policy_config.default_model
+        self._policy: PolicyClient | None = None
+        self._adapter: EmbodimentAdapter | None = None
+        self._action_horizon: int = 4
         self._observation_timeout = observation_timeout
         self._task: asyncio.Task | None = None
         self._instruction: str = DEFAULT_INSTRUCTION
@@ -61,13 +64,44 @@ class Session:
     def bridge_status(self) -> str:
         return self._bridge.bridge_status
 
+    @property
+    def model_id(self) -> str:
+        return self._model_id
+
     def send_instruction(self, text: str):
         self._instruction = text
+
+    def select_model(self, model_id: str) -> None:
+        if self._state != "idle":
+            raise ValueError("Model can only be changed while idle")
+        if model_id not in self._policy_config.models:
+            raise ValueError(f"Unknown model: {model_id}")
+        self._model_id = model_id
 
     async def start(self):
         if self._task is not None:
             return
-        logger.info("Session starting: policy.connect()")
+
+        model_config = self._policy_config.models.get(self._model_id)
+        if model_config:
+            self._action_horizon = model_config.action_horizon
+            camera_override = model_config.camera_mapping
+            self._adapter = EmbodimentAdapter(
+                self._policy_config.embodiment,
+                camera_mapping_override=camera_override,
+            )
+            self._policy = create_policy(self._policy_config.type, model_config.endpoint)
+        elif not self._policy_config.models:
+            # Mock mode: no models configured
+            self._adapter = EmbodimentAdapter(self._policy_config.embodiment)
+            self._policy = create_policy(self._policy_config.type, "")
+        else:
+            raise ValueError(
+                f"Model '{self._model_id}' not found in config. "
+                f"Available models: {list(self._policy_config.models.keys())}"
+            )
+
+        logger.info("Session starting: policy.connect() for model %s", self._model_id)
         self._paused.set()
         await self._policy.connect()
         self._state = "running"
@@ -84,7 +118,10 @@ class Session:
         with contextlib.suppress(asyncio.CancelledError):
             await self._task
         self._task = None
-        await self._policy.close()
+        if self._policy:
+            await self._policy.close()
+            self._policy = None
+        self._adapter = None
         self._state = "idle"
         self._step = 0
 
@@ -143,11 +180,11 @@ class Session:
 
     async def _run_loop(self):
         try:
+            assert self._adapter is not None
+            assert self._policy is not None
+
             self._logger.clear()
 
-            # Start sim in play mode and wait for observations with cameras.
-            # The sim runs continuously; early observations may lack cameras
-            # while Zenoh routes are being established.
             logger.info("Run loop: starting sim and waiting for camera data...")
             await self._bridge.sim_control("play")
             expected_cams = set(self._adapter.camera_names)
@@ -172,8 +209,6 @@ class Session:
                     return
             logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
 
-            # Teleport arm to manipulation-ready pose after Zenoh routes are up.
-            # Send multiple times to ensure delivery through Zenoh.
             logger.info("Run loop: teleporting arm to home position...")
             for _ in range(3):
                 await self._bridge.sim_control("reset")
@@ -191,7 +226,6 @@ class Session:
             cycle = 0
 
             while True:
-                # Wait for unpause
                 paused_future = asyncio.ensure_future(self._paused.wait())
                 step_future = asyncio.ensure_future(self._step_once.wait())
                 try:
@@ -209,7 +243,6 @@ class Session:
                 if stepping:
                     self._step_once.clear()
 
-                # Get latest observation from continuous stream
                 obs = await asyncio.wait_for(
                     self._bridge.get_observation(),
                     timeout=self._observation_timeout,
@@ -220,7 +253,6 @@ class Session:
                 if self._instruction:
                     self._logger.log_instruction(self._instruction, display_step)
 
-                # Normalize and infer
                 logger.info(
                     "Current joints: %s",
                     [round(p, 4) for p in obs["joint_positions"][:7]],
@@ -243,7 +275,6 @@ class Session:
                     inference_ms,
                 )
 
-                # Normalize response: server may return a raw ndarray or a dict
                 if isinstance(raw_action, np.ndarray):
                     actions_tensor = raw_action
                 elif isinstance(raw_action, dict):
@@ -251,11 +282,9 @@ class Session:
                 else:
                     actions_tensor = raw_action
 
-                # Log ML debug path
                 self._logger.log_raw_action_tensor(actions_tensor, display_step)
                 self._logger.log_inference_latency(inference_ms, display_step)
 
-                # Denormalize
                 action_chunk = self._adapter.action_chunk_from_openpi(actions_tensor)
                 logger.info("Action chunk: %d actions", len(action_chunk))
                 if action_chunk:
@@ -266,10 +295,8 @@ class Session:
                         a["gripper_position"],
                     )
 
-                # Log physical trajectory path
                 self._logger.log_action_trajectory(action_chunk, display_step)
 
-                # Dispatch actions synchronously, then observe the result
                 horizon = action_chunk[: self._action_horizon]
                 logger.info(
                     "Inference cycle %d: dispatching %d actions at %.1fs intervals",

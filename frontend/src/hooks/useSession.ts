@@ -6,6 +6,7 @@ export interface SessionState {
   step: number;
   instruction: string;
   bridgeStatus: string;
+  modelId: string;
 }
 
 export interface ChatMessage {
@@ -21,6 +22,7 @@ export interface UseSessionReturn {
   messages: ChatMessage[];
   sendInstruction: (text: string) => void;
   sendSimControl: (action: string, speed?: number) => void;
+  sendSelectModel: (modelId: string) => void;
 }
 
 const WS_RECONNECT_DELAY = 2000;
@@ -34,6 +36,7 @@ export function useSession(sessionId: string): UseSessionReturn {
     step: 0,
     instruction: '',
     bridgeStatus: 'mock',
+    modelId: '',
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
@@ -69,6 +72,7 @@ export function useSession(sessionId: string): UseSessionReturn {
                 step: msg.step ?? 0,
                 instruction: msg.instruction ?? '',
                 bridgeStatus: msg.bridge_status ?? 'mock',
+                modelId: msg.model_id ?? '',
               };
             });
           } else if (msg.type === 'instruction_ack') {
@@ -134,5 +138,11 @@ export function useSession(sessionId: string): UseSessionReturn {
     }
   }, []);
 
-  return { connected, sessionState, messages, sendInstruction, sendSimControl };
+  const sendSelectModel = useCallback((modelId: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'select_model', model_id: modelId }));
+    }
+  }, []);
+
+  return { connected, sessionState, messages, sendInstruction, sendSimControl, sendSelectModel };
 }

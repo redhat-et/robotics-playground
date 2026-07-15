@@ -4,7 +4,6 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
-from PIL import Image
 
 from robotics_playground.bridges.protocol import Action
 
@@ -17,9 +16,17 @@ _JOINT_LIMIT_MARGIN = 0.05
 
 
 class EmbodimentAdapter:
-    def __init__(self, config: EmbodimentConfig, session_id: str = "default"):
+    def __init__(
+        self,
+        config: EmbodimentConfig,
+        camera_mapping_override: dict[str, str] | None = None,
+        session_id: str = "default",
+    ):
         self._config = config
-        self._image_size = tuple(config.image_size)
+        if camera_mapping_override is not None:
+            self._camera_mapping = camera_mapping_override
+        else:
+            self._camera_mapping = config.camera_mapping
         self._session_id = session_id
 
         # Build reorder indices: URDF order → training order
@@ -41,32 +48,19 @@ class EmbodimentAdapter:
 
     @property
     def camera_names(self) -> list[str]:
-        return list(self._config.camera_mapping.keys())
-
-    def _resize_image(self, image: np.ndarray) -> np.ndarray:
-        h, w = self._image_size
-        pil_img = Image.fromarray(image)
-        # Resize maintaining aspect ratio with padding
-        pil_img.thumbnail((w, h), Image.LANCZOS)
-        padded = Image.new("RGB", (w, h), (0, 0, 0))
-        offset = ((w - pil_img.width) // 2, (h - pil_img.height) // 2)
-        padded.paste(pil_img, offset)
-        return np.array(padded)
+        return list(self._camera_mapping.keys())
 
     def observation_to_openpi(self, obs: Observation, instruction: str) -> dict:
         result: dict = {}
 
-        # Remap and resize camera images
-        for ros_name, openpi_key in self._config.camera_mapping.items():
+        for ros_name, openpi_key in self._camera_mapping.items():
             if ros_name in obs["cameras"]:
-                result[openpi_key] = self._resize_image(obs["cameras"][ros_name])
+                result[openpi_key] = obs["cameras"][ros_name]
 
-        # Reorder joint positions (raw radians — server normalizes internally)
         positions = np.array(obs["joint_positions"], dtype=np.float64)
         reordered = positions[self._obs_reorder]
         result["observation/joint_position"] = reordered.astype(np.float32)
 
-        # Gripper — raw value, server normalizes internally
         gripper_val = 0.0
         if len(obs["joint_positions"]) > len(self._config.joint_names):
             gripper_val = obs["joint_positions"][len(self._config.joint_names)]
@@ -83,11 +77,7 @@ class EmbodimentAdapter:
         result = []
         for i in range(chunk_size):
             row = actions_array[i]
-            # Server returns absolute joint positions in radians (already
-            # denormalized and delta→absolute converted internally)
             pos_physical = row[:n_joints].astype(np.float64)
-
-            # Reorder from training order to URDF order
             pos_urdf = pos_physical[self._act_reorder]
 
             if self._lower is not None:

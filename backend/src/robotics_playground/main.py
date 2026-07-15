@@ -14,8 +14,6 @@ from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 
 from robotics_playground.bridges import create_bridge
 from robotics_playground.config import load_config
-from robotics_playground.policy import create_policy
-from robotics_playground.policy.embodiment_adapter import EmbodimentAdapter
 from robotics_playground.rerun_logger import RerunLogger
 from robotics_playground.session import Session
 
@@ -114,14 +112,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         await bridge.start()
         logger.info("Bridge started: %s", bridge.bridge_status)
 
-        policy = create_policy(config)
-        adapter = EmbodimentAdapter(config.policy.embodiment)
         session = Session(
             bridge=bridge,
-            policy=policy,
-            adapter=adapter,
+            policy_config=config.policy,
             rerun_logger=rerun_logger,
-            action_horizon=config.policy.action_horizon,
         )
 
         stop_logger = asyncio.Event()
@@ -151,10 +145,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
 app = FastAPI(title="Robotics Playground", lifespan=lifespan)
 
-MODELS = [
-    {"id": "dreamzero-v1", "name": "DreamZero", "type": "robotics"},
-]
-
 
 @app.get("/api/health")
 def health():
@@ -179,7 +169,14 @@ def get_config():
 
 @app.get("/api/models")
 def list_models(type: str = Query(default="robotics")):
-    return {"models": [m for m in MODELS if m["type"] == type]}
+    if config.policy.models:
+        models = [
+            {"id": model_id, "name": mc.name or model_id, "type": "robotics"}
+            for model_id, mc in config.policy.models.items()
+        ]
+    else:
+        models = [{"id": "mock-v1", "name": "Mock", "type": "robotics"}]
+    return {"models": [m for m in models if m["type"] == type]}
 
 
 @app.websocket("/ws/sessions/{session_id}")
@@ -199,6 +196,7 @@ async def websocket_session(websocket: WebSocket, session_id: str):
                             "step": session.step,
                             "instruction": session.instruction,
                             "bridge_status": session.bridge_status,
+                            "model_id": session.model_id,
                         }
                     )
                 await asyncio.sleep(1)
@@ -229,6 +227,13 @@ async def websocket_session(websocket: WebSocket, session_id: str):
                 action = msg.get("action", "")
                 speed = msg.get("speed")
                 await session.handle_sim_control(action, speed=speed)
+
+            elif msg_type == "select_model":
+                model_id = msg.get("model_id", "")
+                try:
+                    session.select_model(model_id)
+                except ValueError as exc:
+                    logger.warning("Model selection rejected: %s", exc)
     except WebSocketDisconnect:
         pass
     finally:
