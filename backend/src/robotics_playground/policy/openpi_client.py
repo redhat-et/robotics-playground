@@ -25,9 +25,14 @@ class OpenPIClient:
         self._endpoint = endpoint
         self._ws: websockets.sync.client.ClientConnection | None = None
         self._packer = msgpack_numpy.Packer()
+        self._wire_format: str = msgpack_numpy.VLLM_OMNI
         self._server_metadata: dict = {}
         self._executor = _new_executor()
         self._closing = False
+
+    @property
+    def wire_format(self) -> str:
+        return self._wire_format
 
     async def connect(self) -> None:
         self._closing = False
@@ -39,7 +44,11 @@ class OpenPIClient:
         self._ws, self._server_metadata = await loop.run_in_executor(
             self._executor, self._connect_sync
         )
-        logger.info("Connected to OpenPI server at %s", self._endpoint)
+        logger.info(
+            "Connected to OpenPI server at %s (wire_format=%s)",
+            self._endpoint,
+            self._wire_format,
+        )
         logger.info("Server metadata: %s", self._server_metadata)
 
     def _connect_sync(self) -> tuple:
@@ -49,7 +58,13 @@ class OpenPIClient:
             max_size=None,
             open_timeout=CONNECT_TIMEOUT,
         )
-        metadata = msgpack_numpy.unpackb(conn.recv(timeout=RECV_TIMEOUT))
+        raw = conn.recv(timeout=RECV_TIMEOUT)
+        self._wire_format = msgpack_numpy.detect_wire_format(
+            raw,
+            endpoint_hint=self._endpoint,
+        )
+        self._packer = msgpack_numpy.make_packer(self._wire_format)
+        metadata = msgpack_numpy.unpackb(raw)
         return conn, metadata
 
     async def infer(self, obs: dict) -> dict:
