@@ -6,19 +6,25 @@ from unittest.mock import MagicMock
 import pytest
 
 from robotics_playground.bridges.mock_bridge import MockBridge
-from robotics_playground.config import EmbodimentConfig
-from robotics_playground.policy.embodiment_adapter import EmbodimentAdapter
-from robotics_playground.policy.mock_client import MockClient
+from robotics_playground.config import EmbodimentConfig, ModelConfig, PolicyConfig
 from robotics_playground.session import Session
 
-SIMPLE_CONFIG = EmbodimentConfig(
+_EMBODIMENT = EmbodimentConfig(
     joint_names=["j1", "j2", "j3", "j4", "j5", "j6"],
     training_order=["j1", "j2", "j3", "j4", "j5", "j6"],
     joint_limits={f"j{i}": [-1, 1] for i in range(1, 7)},
     gripper_joint="g",
     gripper_limits=[0, 1],
     camera_mapping={"wrist": "observation/wrist_image_left"},
-    image_size=[180, 320],
+)
+
+_POLICY_CONFIG = PolicyConfig(
+    type="mock",
+    default_model="mock-v1",
+    models={
+        "mock-v1": ModelConfig(name="Mock", endpoint="", action_horizon=4),
+    },
+    embodiment=_EMBODIMENT,
 )
 
 
@@ -36,11 +42,9 @@ def _make_mock_logger():
 @pytest.mark.anyio
 async def test_lockstep_session_runs_and_logs():
     mock_logger = _make_mock_logger()
-    adapter = EmbodimentAdapter(SIMPLE_CONFIG)
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=adapter,
+        policy_config=_POLICY_CONFIG,
         rerun_logger=mock_logger,
     )
     await session.start()
@@ -55,11 +59,9 @@ async def test_lockstep_session_runs_and_logs():
 
 @pytest.mark.anyio
 async def test_lockstep_session_initial_state():
-    adapter = EmbodimentAdapter(SIMPLE_CONFIG)
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=adapter,
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     assert session.state == "idle"
@@ -68,11 +70,9 @@ async def test_lockstep_session_initial_state():
 
 @pytest.mark.anyio
 async def test_lockstep_session_pause_resume():
-    adapter = EmbodimentAdapter(SIMPLE_CONFIG)
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=adapter,
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
@@ -85,11 +85,9 @@ async def test_lockstep_session_pause_resume():
 
 @pytest.mark.anyio
 async def test_lockstep_session_consumes_observations():
-    adapter = EmbodimentAdapter(SIMPLE_CONFIG)
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=adapter,
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.start()

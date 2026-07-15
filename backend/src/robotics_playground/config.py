@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ServerConfig(BaseModel):
@@ -41,15 +41,29 @@ class EmbodimentConfig(BaseModel):
     gripper_joint: str = ""
     gripper_limits: list[float] = [0.0, 0.04]
     camera_mapping: dict[str, str] = {}
-    image_size: list[int] = [180, 320]
+
+
+class ModelConfig(BaseModel):
+    name: str = ""
+    endpoint: str
+    action_horizon: int = Field(default=4, gt=0)
+    camera_mapping: dict[str, str] | None = None
 
 
 class PolicyConfig(BaseModel):
     type: str = "mock"
-    endpoint: str = ""
-    model_name: str = "dreamzero"
-    action_horizon: int = Field(default=4, gt=0)
+    default_model: str = ""
+    models: dict[str, ModelConfig] = {}
     embodiment: EmbodimentConfig = EmbodimentConfig()
+
+    @model_validator(mode="after")
+    def _validate_default_model(self) -> PolicyConfig:
+        if self.models and self.default_model and self.default_model not in self.models:
+            raise ValueError(
+                f"default_model '{self.default_model}' not found in models: "
+                f"{list(self.models.keys())}"
+            )
+        return self
 
 
 class PlaygroundConfig(BaseModel):

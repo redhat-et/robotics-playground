@@ -6,19 +6,26 @@ from unittest.mock import MagicMock
 import pytest
 
 from robotics_playground.bridges.mock_bridge import MockBridge
-from robotics_playground.config import EmbodimentConfig
-from robotics_playground.policy.embodiment_adapter import EmbodimentAdapter
-from robotics_playground.policy.mock_client import MockClient
+from robotics_playground.config import EmbodimentConfig, ModelConfig, PolicyConfig
 from robotics_playground.session import DEFAULT_INSTRUCTION, Session
 
-_SIMPLE_CONFIG = EmbodimentConfig(
+_EMBODIMENT = EmbodimentConfig(
     joint_names=["j1", "j2", "j3", "j4", "j5", "j6"],
     training_order=["j1", "j2", "j3", "j4", "j5", "j6"],
     joint_limits={f"j{i}": [-1, 1] for i in range(1, 7)},
     gripper_joint="g",
     gripper_limits=[0, 1],
     camera_mapping={"wrist": "observation/wrist_image_left"},
-    image_size=[180, 320],
+)
+
+_POLICY_CONFIG = PolicyConfig(
+    type="mock",
+    default_model="mock-v1",
+    models={
+        "mock-v1": ModelConfig(name="Mock", endpoint="", action_horizon=4),
+        "mock-v2": ModelConfig(name="Mock v2", endpoint="", action_horizon=8),
+    },
+    embodiment=_EMBODIMENT,
 )
 
 
@@ -36,8 +43,7 @@ def _make_mock_logger():
 def test_session_initial_state():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     assert session.state == "idle"
@@ -48,8 +54,7 @@ def test_session_initial_state():
 def test_send_instruction_stores_text():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     session.send_instruction("wave")
@@ -60,8 +65,7 @@ def test_send_instruction_stores_text():
 async def test_start_stop_lifecycle():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
@@ -74,8 +78,7 @@ async def test_start_stop_lifecycle():
 async def test_start_is_idempotent():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
@@ -88,8 +91,7 @@ async def test_start_is_idempotent():
 async def test_stop_from_idle_is_noop():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.stop()
@@ -100,8 +102,7 @@ async def test_stop_from_idle_is_noop():
 async def test_pause_resume():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
@@ -116,8 +117,7 @@ async def test_pause_resume():
 async def test_reset_clears_state():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
@@ -131,8 +131,7 @@ async def test_reset_clears_state():
 async def test_handle_sim_control_play_from_idle():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.handle_sim_control("play")
@@ -144,8 +143,7 @@ async def test_handle_sim_control_play_from_idle():
 async def test_handle_sim_control_with_speed():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.handle_sim_control("play", speed=2.0)
@@ -157,8 +155,7 @@ async def test_handle_sim_control_with_speed():
 async def test_handle_sim_control_step():
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.handle_sim_control("step")
@@ -171,8 +168,7 @@ async def test_bridge_status_exposed():
     bridge = MockBridge()
     session = Session(
         bridge=bridge,
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     assert session.bridge_status == "mock"
@@ -183,8 +179,7 @@ async def test_observation_loop_logs_data():
     mock_logger = _make_mock_logger()
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=mock_logger,
     )
     await session.start()
@@ -199,8 +194,7 @@ async def test_stop_does_not_clear_rerun():
     mock_logger = _make_mock_logger()
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=mock_logger,
     )
     await session.start()
@@ -213,8 +207,7 @@ async def test_reset_clears_rerun_logger():
     mock_logger = _make_mock_logger()
     session = Session(
         bridge=MockBridge(),
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=mock_logger,
     )
     await session.start()
@@ -228,8 +221,7 @@ async def test_stop_does_not_close_bridge():
     await bridge.start()
     session = Session(
         bridge=bridge,
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
@@ -243,8 +235,7 @@ async def test_reset_sends_teleport_command():
     await bridge.start()
     session = Session(
         bridge=bridge,
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
@@ -259,13 +250,54 @@ async def test_reset_from_idle_sends_teleport():
     await bridge.start()
     session = Session(
         bridge=bridge,
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.reset()
     assert ("reset", None) in bridge.sim_control_calls
     assert session.state == "idle"
+
+
+def test_select_model_while_idle():
+    session = Session(
+        bridge=MockBridge(),
+        policy_config=_POLICY_CONFIG,
+        rerun_logger=_make_mock_logger(),
+    )
+    session.select_model("mock-v2")
+    assert session.model_id == "mock-v2"
+
+
+def test_select_model_invalid_raises():
+    session = Session(
+        bridge=MockBridge(),
+        policy_config=_POLICY_CONFIG,
+        rerun_logger=_make_mock_logger(),
+    )
+    with pytest.raises(ValueError, match="Unknown model"):
+        session.select_model("nonexistent")
+
+
+@pytest.mark.anyio
+async def test_select_model_while_running_raises():
+    session = Session(
+        bridge=MockBridge(),
+        policy_config=_POLICY_CONFIG,
+        rerun_logger=_make_mock_logger(),
+    )
+    await session.start()
+    with pytest.raises(ValueError, match="idle"):
+        session.select_model("mock-v2")
+    await session.stop()
+
+
+def test_model_id_defaults_to_default_model():
+    session = Session(
+        bridge=MockBridge(),
+        policy_config=_POLICY_CONFIG,
+        rerun_logger=_make_mock_logger(),
+    )
+    assert session.model_id == "mock-v1"
 
 
 @pytest.mark.anyio
@@ -274,8 +306,7 @@ async def test_start_sends_play_stop_sends_pause():
     await bridge.start()
     session = Session(
         bridge=bridge,
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
     await session.start()
@@ -291,8 +322,7 @@ async def test_bridge_disconnect_during_run_sets_error():
     await bridge.start()
     session = Session(
         bridge=bridge,
-        policy=MockClient(),
-        adapter=EmbodimentAdapter(_SIMPLE_CONFIG),
+        policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
         observation_timeout=0.5,
     )

@@ -15,9 +15,14 @@ interface Model {
   type: string;
 }
 
-const PolicyBar: React.FC = () => {
+interface PolicyBarProps {
+  selectedModel: string;
+  onSelectModel: (modelId: string) => void;
+  disabled?: boolean;
+}
+
+const PolicyBar: React.FC<PolicyBarProps> = ({ selectedModel, onSelectModel, disabled }) => {
   const [models, setModels] = useState<Model[]>([]);
-  const [selectedPolicy, setSelectedPolicy] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -26,9 +31,6 @@ const PolicyBar: React.FC = () => {
       .then((data) => {
         const fetched: Model[] = data.models ?? [];
         setModels(fetched);
-        if (fetched.length > 0) {
-          setSelectedPolicy(fetched[0].id);
-        }
       })
       .catch(() => {
         setModels([]);
@@ -50,10 +52,10 @@ const PolicyBar: React.FC = () => {
           ) : (
             <FormSelect
               id="policy-select"
-              value={selectedPolicy}
-              onChange={(_event, value) => setSelectedPolicy(value)}
+              value={selectedModel}
+              onChange={(_event, value) => onSelectModel(value)}
               aria-label="Select policy"
-              isDisabled={models.length === 0}
+              isDisabled={disabled || models.length === 0}
             >
               {models.length === 0 ? (
                 <FormSelectOption key="none" value="" label="No models available" isDisabled />

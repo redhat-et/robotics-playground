@@ -273,4 +273,55 @@ describe('useSession', () => {
     unmount();
     expect(ws.readyState).toBe(3); // CLOSED
   });
+
+  it('includes modelId in session state from status', async () => {
+    const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    act(() => {
+      MockWebSocket.instances[0].simulateMessage({
+        type: 'status',
+        state: 'idle',
+        step: 0,
+        instruction: '',
+        bridge_status: 'connected',
+        model_id: 'pi05-v1',
+      });
+    });
+
+    expect(result.current.sessionState.modelId).toBe('pi05-v1');
+  });
+
+  it('defaults modelId to empty string', async () => {
+    const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    act(() => {
+      MockWebSocket.instances[0].simulateMessage({ type: 'status' });
+    });
+
+    expect(result.current.sessionState.modelId).toBe('');
+  });
+
+  it('sendSelectModel sends select_model message', async () => {
+    const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    act(() => {
+      result.current.sendSelectModel('pi05-v1');
+    });
+
+    const sent = JSON.parse(MockWebSocket.instances[0].sent[0]);
+    expect(sent.type).toBe('select_model');
+    expect(sent.model_id).toBe('pi05-v1');
+  });
 });

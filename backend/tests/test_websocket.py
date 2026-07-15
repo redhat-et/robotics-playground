@@ -16,6 +16,7 @@ def test_websocket_connect_receives_status(mock_rr: MagicMock):
         assert "step" in data
         assert "instruction" in data
         assert "bridge_status" in data
+        assert "model_id" in data
         assert data["bridge_status"] == "connected"
 
 
@@ -90,3 +91,63 @@ def test_websocket_multiple_instructions(mock_rr: MagicMock):
         assert len(acks) == 2
         assert acks[0]["text"] == "first"
         assert acks[1]["text"] == "second"
+
+
+@patch("robotics_playground.rerun_logger.rr")
+def test_websocket_select_model_silently_ignored_when_invalid(mock_rr: MagicMock):
+    """select_model with invalid model_id is silently ignored (no error, no ack)."""
+    with TestClient(app) as client, client.websocket_connect("/ws/sessions/test") as ws:
+        _ = ws.receive_json()  # initial status
+        ws.send_json({"type": "select_model", "model_id": "nonexistent"})
+        # Should just receive next status (no crash, no special message)
+        data = ws.receive_json()
+        assert data["type"] == "status"
+
+
+def test_api_models_with_populated_config():
+    """Test /api/models endpoint with actual model entries in config."""
+    from robotics_playground.config import ModelConfig, PlaygroundConfig, PolicyConfig
+    from robotics_playground.main import app
+
+    test_config = PlaygroundConfig(
+        policy=PolicyConfig(
+            type="openpi",
+            default_model="dreamzero-v1",
+            models={
+                "dreamzero-v1": ModelConfig(
+                    name="DreamZero",
+                    endpoint="ws://dreamzero:8080/v1/realtime/robot/openpi",
+                    action_horizon=4,
+                ),
+                "pi05-v1": ModelConfig(
+                    name="pi0.5",
+                    endpoint="ws://pi05:8080/",
+                    action_horizon=8,
+                ),
+            },
+        )
+    )
+
+    with (
+        patch("robotics_playground.main.config", test_config),
+        patch("robotics_playground.rerun_logger.rr"),
+        TestClient(app) as client,
+    ):
+        response = client.get("/api/models?type=robotics")
+        assert response.status_code == 200
+        data = response.json()
+        assert "models" in data
+        models = data["models"]
+        assert len(models) == 2
+
+        # Verify both models are present with correct IDs and names
+        model_ids = {m["id"] for m in models}
+        assert model_ids == {"dreamzero-v1", "pi05-v1"}
+
+        dreamzero = next(m for m in models if m["id"] == "dreamzero-v1")
+        assert dreamzero["name"] == "DreamZero"
+        assert dreamzero["type"] == "robotics"
+
+        pi05 = next(m for m in models if m["id"] == "pi05-v1")
+        assert pi05["name"] == "pi0.5"
+        assert pi05["type"] == "robotics"
