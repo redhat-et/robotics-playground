@@ -3,18 +3,16 @@ FROM docker.io/ros:jazzy AS builder
 WORKDIR /build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12-venv python3-dev gcc && \
+    python3-dev gcc && \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
 COPY src/ src/
-RUN python3 -m venv /venv && \
-    /venv/bin/pip install --no-cache-dir . && \
-    cp -a /venv/lib/python3.12/site-packages /install-pkgs
+RUN pip install --no-cache-dir --break-system-packages --prefix=/install .
 
 FROM docker.io/ros:jazzy
 
-COPY --from=builder /install-pkgs /usr/lib/python3/dist-packages
+COPY --from=builder /install/lib/python3/dist-packages /usr/lib/python3/dist-packages
 COPY src/ /app/src/
 
 RUN mkdir -p /app/.home && chmod g+w /app/.home
