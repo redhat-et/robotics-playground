@@ -93,7 +93,12 @@ def _extract_origin(url: str) -> str:
     from urllib.parse import urlparse
 
     parsed = urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else url
+    if not parsed.scheme or not parsed.hostname:
+        return ""
+    origin = f"{parsed.scheme}://{parsed.hostname}"
+    if parsed.port:
+        origin += f":{parsed.port}"
+    return origin
 
 
 @asynccontextmanager
