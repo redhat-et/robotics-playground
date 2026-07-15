@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import faulthandler
 import json
 import logging
 import os
+import threading
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -20,6 +22,7 @@ from robotics_playground.session import Session
 config = load_config()
 logging.basicConfig(level=getattr(logging, config.server.log_level.upper(), logging.INFO))
 logger = logging.getLogger(__name__)
+faulthandler.enable()
 
 
 async def _observation_logger(
@@ -66,6 +69,22 @@ async def _observation_logger(
             await asyncio.sleep(1.0)
 
 
+async def _heartbeat(bridge, session: Session, stop_event: asyncio.Event):
+    while not stop_event.is_set():
+        try:
+            await asyncio.sleep(60)
+            logger.info(
+                "Heartbeat: event_loop=alive, threads=%d, session=%s, bridge=%s",
+                threading.active_count(),
+                session.state,
+                bridge.bridge_status,
+            )
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            logger.exception("Heartbeat error")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     rerun_viewer_url = os.environ.get("RERUN_VIEWER_URL", "")
@@ -97,6 +116,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         obs_logger_task = asyncio.create_task(
             _observation_logger(bridge, session, rerun_logger, stop_logger)
         )
+        heartbeat_task = asyncio.create_task(_heartbeat(bridge, session, stop_logger))
 
         app.state.bridge = bridge
         app.state.rerun_logger = rerun_logger
@@ -107,8 +127,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             await session.stop()
             stop_logger.set()
             obs_logger_task.cancel()
+            heartbeat_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await obs_logger_task
+            with contextlib.suppress(asyncio.CancelledError):
+                await heartbeat_task
             await bridge.close()
     finally:
         rerun_logger.shutdown()
@@ -124,8 +147,12 @@ MODELS = [
 @app.get("/api/health")
 def health():
     bridge = getattr(app.state, "bridge", None)
-    if bridge and bridge.bridge_status != "connected":
-        return {"status": "degraded", "bridge": bridge.bridge_status}
+    bridge_status = bridge.bridge_status if bridge else "unknown"
+    session = getattr(app.state, "session", None)
+    session_state = session.state if session else "unknown"
+    logger.debug("Health check: bridge=%s, session=%s", bridge_status, session_state)
+    if bridge and bridge_status != "connected":
+        return {"status": "degraded", "bridge": bridge_status}
     return {"status": "ok"}
 
 
