@@ -21,6 +21,7 @@ data:
         default_type application/octet-stream;
         access_log /dev/stdout;
         types_hash_max_size 4096;
+        sendfile on;
 
         server {
             listen 8080;
@@ -45,8 +46,6 @@ data:
                 try_files $uri $uri/ $uri.js =404;
                 add_header Cache-Control "no-cache";
                 gzip_static on;
-                gzip on;
-                gzip_types application/javascript application/wasm;
             }
 
             location / {
