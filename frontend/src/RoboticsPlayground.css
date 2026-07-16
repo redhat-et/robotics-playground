@@ -16,24 +16,23 @@
 }
 
 .robotics-playground {
-  display: grid;
-  grid-template-columns: 400px 1fr;
   flex: 1;
   min-height: 0;
   height: 100%;
 }
 
-.robotics-playground__sidebar {
+.robotics-playground__sidebar-body {
   display: flex;
   flex-direction: column;
+  flex: 1;
   min-height: 0;
-  border-right: 1px solid var(--pf-t--global--border--color--default);
 }
 
 .robotics-playground__main {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
 }
 
 /* ChatPanel */

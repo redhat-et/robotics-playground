@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Button,
-  Content,
   Flex,
   FlexItem,
   TextInput,
@@ -40,7 +39,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendInstruction, conn
 
   return (
     <div className="chat-panel">
-      <Content component="h2">Instructions</Content>
       <div className="chat-panel__messages">
         {messages.map((msg) => (
           <div key={msg.id} className={`chat-panel__message chat-panel__message--${msg.role}`}>

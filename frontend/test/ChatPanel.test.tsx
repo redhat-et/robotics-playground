@@ -4,11 +4,6 @@ import userEvent from '@testing-library/user-event';
 import ChatPanel from '../src/components/ChatPanel';
 
 describe('ChatPanel', () => {
-  it('renders the instructions heading', () => {
-    render(<ChatPanel messages={[]} onSendInstruction={vi.fn()} connected={false} />);
-    expect(screen.getByText('Instructions')).toBeInTheDocument();
-  });
-
   it('disables input when not connected', () => {
     render(<ChatPanel messages={[]} onSendInstruction={vi.fn()} connected={false} />);
     const input = screen.getByPlaceholderText('Tell the robot what to do...');
