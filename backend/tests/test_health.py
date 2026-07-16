@@ -28,7 +28,12 @@ def test_config_returns_defaults():
     client = TestClient(app)
     response = client.get("/api/config")
     assert response.status_code == 200
-    assert response.json() == {"wsUrl": "", "rerunViewerUrl": "", "rerunGrpcUrl": "", "rerunAssetsUrl": ""}
+    assert response.json() == {
+        "wsUrl": "",
+        "rerunViewerUrl": "",
+        "rerunGrpcUrl": "",
+        "rerunAssetsUrl": "",
+    }
 
 
 def test_config_returns_urls_from_env(monkeypatch):
