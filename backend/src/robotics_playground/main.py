@@ -47,10 +47,6 @@ async def _observation_logger(
 
             if session.state in ("running", "paused"):
                 was_active = True
-                obs = await bridge.get_latest_observation()
-                if obs:
-                    rerun_logger.log_observation(obs, step)
-                    step += 1
                 await asyncio.sleep(0.5)
                 continue
 
