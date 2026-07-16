@@ -57,6 +57,7 @@ class OpenPIClient:
             compression=None,
             max_size=None,
             open_timeout=CONNECT_TIMEOUT,
+            ping_interval=None,
         )
         raw = conn.recv(timeout=RECV_TIMEOUT)
         self._wire_format = msgpack_numpy.detect_wire_format(
