@@ -164,6 +164,7 @@ def get_config():
         "wsUrl": os.environ.get("WS_EXTERNAL_URL", ""),
         "rerunViewerUrl": os.environ.get("RERUN_VIEWER_URL", ""),
         "rerunGrpcUrl": os.environ.get("RERUN_GRPC_URL", ""),
+        "rerunAssetsUrl": os.environ.get("RERUN_ASSETS_URL", ""),
     }
 
 

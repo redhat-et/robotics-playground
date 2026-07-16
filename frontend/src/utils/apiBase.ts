@@ -12,9 +12,10 @@ export interface BackendConfig {
   wsUrl: string;
   rerunViewerUrl: string;
   rerunGrpcUrl: string;
+  rerunAssetsUrl: string;
 }
 
-const EMPTY_CONFIG: BackendConfig = { wsUrl: '', rerunViewerUrl: '', rerunGrpcUrl: '' };
+const EMPTY_CONFIG: BackendConfig = { wsUrl: '', rerunViewerUrl: '', rerunGrpcUrl: '', rerunAssetsUrl: '' };
 
 let _configPromise: Promise<BackendConfig> | null = null;
 
@@ -25,6 +26,7 @@ function fetchConfig(): Promise<BackendConfig> {
       wsUrl: data.wsUrl ?? '',
       rerunViewerUrl: data.rerunViewerUrl ?? '',
       rerunGrpcUrl: data.rerunGrpcUrl ?? '',
+      rerunAssetsUrl: data.rerunAssetsUrl ?? '',
     }))
     .catch(() => EMPTY_CONFIG);
 }

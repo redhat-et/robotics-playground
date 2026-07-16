@@ -16,12 +16,14 @@
       const params = new URLSearchParams(window.location.search);
       const url = params.get("url");
       const hideWelcome = params.has("hide_welcome_screen");
+      const assetsUrl = params.get("assets_url");
 
       const viewer = new WebViewer();
       await viewer.start(url, document.getElementById("viewer"), {
         width: "100%",
         height: "100%",
         hide_welcome_screen: hideWelcome,
+        base_url: assetsUrl || undefined,
       });
     </script>
   </body>
