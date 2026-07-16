@@ -12,9 +12,9 @@ describe('App', () => {
     expect(screen.getByText('Robotics Playground')).toBeInTheDocument();
   });
 
-  it('renders the chat panel', () => {
+  it('renders the sidebar panel', () => {
     render(<App />);
-    expect(screen.getByText('Instructions')).toBeInTheDocument();
+    expect(screen.getByText('Instructions & Control')).toBeInTheDocument();
   });
 
   it('renders the simulation control panel', () => {

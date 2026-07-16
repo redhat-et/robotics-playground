@@ -7,6 +7,7 @@ import {
   FormSelectOption,
   Spinner,
 } from '@patternfly/react-core';
+import { BarsIcon } from '@patternfly/react-icons';
 import { API_BASE } from '../utils/apiBase';
 
 interface Model {
@@ -16,12 +17,14 @@ interface Model {
 }
 
 interface PolicyBarProps {
+  isSidebarOpen: boolean;
+  onToggleSidebar: () => void;
   selectedModel: string;
   onSelectModel: (modelId: string) => void;
   disabled?: boolean;
 }
 
-const PolicyBar: React.FC<PolicyBarProps> = ({ selectedModel, onSelectModel, disabled }) => {
+const PolicyBar: React.FC<PolicyBarProps> = ({ isSidebarOpen, onToggleSidebar, selectedModel, onSelectModel, disabled }) => {
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +48,15 @@ const PolicyBar: React.FC<PolicyBarProps> = ({ selectedModel, onSelectModel, dis
       className="policy-bar"
     >
       <Flex alignItems={{ default: 'alignItemsCenter' }}>
+        <FlexItem>
+          <Button
+            variant="plain"
+            aria-label="Toggle sidebar"
+            aria-expanded={isSidebarOpen}
+            onClick={onToggleSidebar}
+            icon={<BarsIcon />}
+          />
+        </FlexItem>
         <FlexItem>Policy:</FlexItem>
         <FlexItem>
           {loading ? (

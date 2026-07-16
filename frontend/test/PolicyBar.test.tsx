@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import PolicyBar from '../src/components/PolicyBar';
 
 const MOCK_MODELS = {
@@ -7,6 +8,13 @@ const MOCK_MODELS = {
     { id: 'dreamzero-v1', name: 'DreamZero', type: 'robotics' },
     { id: 'model-b', name: 'Model B', type: 'robotics' },
   ],
+};
+
+const defaultProps = {
+  isSidebarOpen: true,
+  onToggleSidebar: vi.fn(),
+  selectedModel: '',
+  onSelectModel: vi.fn(),
 };
 
 describe('PolicyBar', () => {
@@ -19,7 +27,7 @@ describe('PolicyBar', () => {
 
   it('shows loading spinner initially', () => {
     vi.spyOn(global, 'fetch').mockReturnValue(new Promise(() => {}));
-    render(<PolicyBar selectedModel="" onSelectModel={onSelectModel} />);
+    render(<PolicyBar {...defaultProps} onSelectModel={onSelectModel} />);
     expect(screen.getByLabelText('Loading models')).toBeInTheDocument();
   });
 
@@ -28,7 +36,7 @@ describe('PolicyBar', () => {
       json: () => Promise.resolve(MOCK_MODELS),
     } as Response);
 
-    render(<PolicyBar selectedModel="dreamzero-v1" onSelectModel={onSelectModel} />);
+    render(<PolicyBar {...defaultProps} selectedModel="dreamzero-v1" onSelectModel={onSelectModel} />);
 
     await waitFor(() => {
       expect(screen.getByText('DreamZero')).toBeInTheDocument();
@@ -41,7 +49,7 @@ describe('PolicyBar', () => {
       json: () => Promise.resolve(MOCK_MODELS),
     } as Response);
 
-    render(<PolicyBar selectedModel="" onSelectModel={onSelectModel} />);
+    render(<PolicyBar {...defaultProps} onSelectModel={onSelectModel} />);
 
     await waitFor(() => {
       expect(screen.getByText('DreamZero')).toBeInTheDocument();
@@ -54,7 +62,7 @@ describe('PolicyBar', () => {
       json: () => Promise.resolve(MOCK_MODELS),
     } as Response);
 
-    render(<PolicyBar selectedModel="model-b" onSelectModel={onSelectModel} />);
+    render(<PolicyBar {...defaultProps} selectedModel="model-b" onSelectModel={onSelectModel} />);
 
     await waitFor(() => {
       expect(screen.getByText('DreamZero')).toBeInTheDocument();
@@ -67,7 +75,7 @@ describe('PolicyBar', () => {
       json: () => Promise.resolve({ models: [] }),
     } as Response);
 
-    render(<PolicyBar selectedModel="" onSelectModel={onSelectModel} />);
+    render(<PolicyBar {...defaultProps} onSelectModel={onSelectModel} />);
 
     await waitFor(() => {
       expect(screen.getByText('No models available')).toBeInTheDocument();
@@ -79,7 +87,7 @@ describe('PolicyBar', () => {
       json: () => Promise.resolve(MOCK_MODELS),
     } as Response);
 
-    render(<PolicyBar selectedModel="dreamzero-v1" onSelectModel={onSelectModel} disabled />);
+    render(<PolicyBar {...defaultProps} selectedModel="dreamzero-v1" onSelectModel={onSelectModel} disabled />);
 
     await waitFor(() => {
       const select = screen.getByLabelText('Select policy') as HTMLSelectElement;
@@ -90,7 +98,7 @@ describe('PolicyBar', () => {
   it('handles fetch error gracefully', async () => {
     vi.spyOn(global, 'fetch').mockRejectedValue(new Error('Network error'));
 
-    render(<PolicyBar selectedModel="" onSelectModel={onSelectModel} />);
+    render(<PolicyBar {...defaultProps} onSelectModel={onSelectModel} />);
 
     await waitFor(() => {
       expect(screen.getByText('No models available')).toBeInTheDocument();
@@ -102,7 +110,7 @@ describe('PolicyBar', () => {
       json: () => Promise.resolve(MOCK_MODELS),
     } as Response);
 
-    render(<PolicyBar selectedModel="dreamzero-v1" onSelectModel={onSelectModel} />);
+    render(<PolicyBar {...defaultProps} selectedModel="dreamzero-v1" onSelectModel={onSelectModel} />);
 
     await waitFor(() => {
       expect(screen.getByText('DreamZero')).toBeInTheDocument();
@@ -117,10 +125,35 @@ describe('PolicyBar', () => {
       json: () => Promise.resolve(MOCK_MODELS),
     } as Response);
 
-    render(<PolicyBar selectedModel="" onSelectModel={onSelectModel} />);
+    render(<PolicyBar {...defaultProps} onSelectModel={onSelectModel} />);
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith('/api/models?type=robotics');
     });
+  });
+
+  it('renders sidebar toggle button', () => {
+    vi.spyOn(global, 'fetch').mockReturnValue(new Promise(() => {}));
+    render(<PolicyBar {...defaultProps} />);
+    expect(screen.getByLabelText('Toggle sidebar')).toBeInTheDocument();
+  });
+
+  it('calls onToggleSidebar when toggle button is clicked', async () => {
+    const onToggle = vi.fn();
+    const user = userEvent.setup();
+    vi.spyOn(global, 'fetch').mockReturnValue(new Promise(() => {}));
+    render(<PolicyBar {...defaultProps} onToggleSidebar={onToggle} />);
+
+    await user.click(screen.getByLabelText('Toggle sidebar'));
+    expect(onToggle).toHaveBeenCalledOnce();
+  });
+
+  it('sets aria-expanded based on isSidebarOpen', () => {
+    vi.spyOn(global, 'fetch').mockReturnValue(new Promise(() => {}));
+    const { rerender } = render(<PolicyBar {...defaultProps} isSidebarOpen={true} />);
+    expect(screen.getByLabelText('Toggle sidebar')).toHaveAttribute('aria-expanded', 'true');
+
+    rerender(<PolicyBar {...defaultProps} isSidebarOpen={false} />);
+    expect(screen.getByLabelText('Toggle sidebar')).toHaveAttribute('aria-expanded', 'false');
   });
 });
