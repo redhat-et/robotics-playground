@@ -15,10 +15,14 @@ function toRerunScheme(url: string): string {
   return `rerun+${url}`;
 }
 
-function buildRerunUrl(viewerBase: string, grpcBase: string): string {
+function buildRerunUrl(viewerBase: string, grpcBase: string, assetsUrl?: string): string {
   const withProxy = grpcBase.endsWith('/proxy') ? grpcBase : `${grpcBase}/proxy`;
   const grpcUrl = toRerunScheme(withProxy);
-  return `${viewerBase}/?url=${encodeURIComponent(grpcUrl)}&hide_welcome_screen`;
+  let url = `${viewerBase}/?url=${encodeURIComponent(grpcUrl)}&hide_welcome_screen`;
+  if (assetsUrl) {
+    url += `&assets_url=${encodeURIComponent(assetsUrl)}`;
+  }
+  return url;
 }
 
 function buildLocalRerunUrl(): string {
@@ -32,7 +36,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = () => {
   useEffect(() => {
     getBackendConfig().then((cfg) => {
       if (cfg.rerunViewerUrl && cfg.rerunGrpcUrl) {
-        setRerunUrl(buildRerunUrl(cfg.rerunViewerUrl, cfg.rerunGrpcUrl));
+        setRerunUrl(buildRerunUrl(cfg.rerunViewerUrl, cfg.rerunGrpcUrl, cfg.rerunAssetsUrl));
       } else {
         setRerunUrl(buildLocalRerunUrl());
       }

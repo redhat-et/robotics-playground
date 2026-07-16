@@ -28,13 +28,14 @@ def test_config_returns_defaults():
     client = TestClient(app)
     response = client.get("/api/config")
     assert response.status_code == 200
-    assert response.json() == {"wsUrl": "", "rerunViewerUrl": "", "rerunGrpcUrl": ""}
+    assert response.json() == {"wsUrl": "", "rerunViewerUrl": "", "rerunGrpcUrl": "", "rerunAssetsUrl": ""}
 
 
 def test_config_returns_urls_from_env(monkeypatch):
     monkeypatch.setenv("WS_EXTERNAL_URL", "wss://backend.example.com")
     monkeypatch.setenv("RERUN_VIEWER_URL", "https://rerun-web.example.com")
     monkeypatch.setenv("RERUN_GRPC_URL", "https://rerun-grpc.example.com")
+    monkeypatch.setenv("RERUN_ASSETS_URL", "https://app.rerun.io/version/0.33.1/")
     client = TestClient(app)
     response = client.get("/api/config")
     assert response.status_code == 200
@@ -42,4 +43,5 @@ def test_config_returns_urls_from_env(monkeypatch):
         "wsUrl": "wss://backend.example.com",
         "rerunViewerUrl": "https://rerun-web.example.com",
         "rerunGrpcUrl": "https://rerun-grpc.example.com",
+        "rerunAssetsUrl": "https://app.rerun.io/version/0.33.1/",
     }
