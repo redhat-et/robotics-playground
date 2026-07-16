@@ -24,11 +24,11 @@ data:
       models:
         dreamzero-v1:
           name: "DreamZero"
-          endpoint: "ws://dreamzero-predictor/v1/realtime/robot/openpi"
+          endpoint: "ws://dreamzero-predictor.physical-ai-models.svc.cluster.local/v1/realtime/robot/openpi"
           action_horizon: 4
         pi05-v1:
           name: "pi0.5"
-          endpoint: "ws://pi05-predictor/"
+          endpoint: "ws://pi05-predictor.physical-ai-models.svc.cluster.local/"
           action_horizon: 8
       embodiment:
         joint_names:
