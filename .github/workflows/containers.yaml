@@ -40,7 +40,7 @@ jobs:
         run: |
           podman build \
             --layers \
-            --cache-from ${IMAGE_UI}:latest \
+            --cache-from ${IMAGE_UI} \
             -t ${IMAGE_UI}:${{ matrix.arch }}-${SHORT_SHA} \
             -f frontend/Containerfile frontend/
 
@@ -81,7 +81,7 @@ jobs:
         run: |
           podman build \
             --layers \
-            --cache-from ${IMAGE_BACKEND}:latest \
+            --cache-from ${IMAGE_BACKEND} \
             -t ${IMAGE_BACKEND}:${{ matrix.arch }}-${SHORT_SHA} \
             -f backend/Containerfile backend/
 
