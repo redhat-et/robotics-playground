@@ -208,7 +208,10 @@ class RerunLogger:
         def _do_log():
             rr.set_time("step", sequence=effective_step)
             for name, jpeg_bytes in cameras_data.items():
-                rr.log(f"{prefix}/camera/{name}", rr.EncodedImage(contents=jpeg_bytes))
+                rr.log(
+                    f"{prefix}/camera/{name}",
+                    rr.EncodedImage(contents=jpeg_bytes, media_type="image/jpeg"),
+                )
             for i, pos in enumerate(joints):
                 label = PANDA_JOINT_LABELS[i] if i < len(PANDA_JOINT_LABELS) else f"joint_{i}"
                 rr.log(
