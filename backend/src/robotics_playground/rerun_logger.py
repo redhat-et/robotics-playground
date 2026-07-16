@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import io
 import logging
 import queue
 import threading
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
+from PIL import Image
 
 if TYPE_CHECKING:
     from robotics_playground.bridges.protocol import Action, Observation
@@ -28,6 +30,13 @@ PANDA_JOINT_LABELS = [
 
 _QUEUE_MAXSIZE = 64
 _SENTINEL = None
+_JPEG_QUALITY = 85
+
+
+def _encode_jpeg(image: np.ndarray) -> bytes:
+    buf = io.BytesIO()
+    Image.fromarray(image).save(buf, format="JPEG", quality=_JPEG_QUALITY)
+    return buf.getvalue()
 
 
 class RerunLogger:
@@ -192,14 +201,14 @@ class RerunLogger:
         effective_step = self._step_offset + step
         self._last_step = step
 
-        cameras_data = {k: v.copy() for k, v in obs["cameras"].items()} if cameras else {}
+        cameras_data = {k: _encode_jpeg(v) for k, v in obs["cameras"].items()} if cameras else {}
         joints = list(obs["joint_positions"])
         prefix = self._prefix
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
-            for name, image in cameras_data.items():
-                rr.log(f"{prefix}/camera/{name}", rr.Image(image))
+            for name, jpeg_bytes in cameras_data.items():
+                rr.log(f"{prefix}/camera/{name}", rr.EncodedImage(contents=jpeg_bytes))
             for i, pos in enumerate(joints):
                 label = PANDA_JOINT_LABELS[i] if i < len(PANDA_JOINT_LABELS) else f"joint_{i}"
                 rr.log(
