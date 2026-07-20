@@ -174,7 +174,7 @@ class RerunLogger:
                     rec_path.mkdir(parents=True, exist_ok=True)
                     ts = time.strftime("%Y%m%d_%H%M%S")
                     rrd_file = rec_path / f"session_{ts}.rrd"
-                    logger.info(
+                    logger.warning(
                         "Disk recording requested to %s but skipped: "
                         "Rerun 0.34 rr.save() replaces the gRPC sink. "
                         "Needs dual-RecordingStream approach.",
