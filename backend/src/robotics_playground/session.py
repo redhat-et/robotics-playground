@@ -89,6 +89,7 @@ class Session:
             self._adapter = EmbodimentAdapter(
                 self._policy_config.embodiment,
                 camera_mapping_override=camera_override,
+                action_type=model_config.action_type,
             )
             self._policy = create_policy(self._policy_config.type, model_config.endpoint)
         elif not self._policy_config.models:
@@ -285,7 +286,9 @@ class Session:
                 self._logger.log_raw_action_tensor(actions_tensor, display_step)
                 self._logger.log_inference_latency(inference_ms, display_step)
 
-                action_chunk = self._adapter.action_chunk_from_openpi(actions_tensor)
+                action_chunk = self._adapter.action_chunk_from_openpi(
+                    actions_tensor, current_obs=obs
+                )
                 logger.info("Action chunk: %d actions", len(action_chunk))
                 if action_chunk:
                     a = action_chunk[0]

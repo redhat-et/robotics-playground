@@ -43,7 +43,7 @@ async def _observation_logger(
                 await asyncio.sleep(0.5)
                 continue
 
-            if session.state in ("running", "paused"):
+            if session.state in ("running", "paused", "error"):
                 was_active = True
                 await asyncio.sleep(0.5)
                 continue

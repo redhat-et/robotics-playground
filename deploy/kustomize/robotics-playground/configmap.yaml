@@ -30,6 +30,10 @@ data:
           name: "pi0.5"
           endpoint: "ws://pi05-predictor/"
           action_horizon: 8
+          action_type: "velocity"
+          camera_mapping:
+            wrist: "observation/wrist_image_left"
+            exterior_1: "observation/exterior_image_1_left"
       embodiment:
         joint_names:
           - panda_joint1

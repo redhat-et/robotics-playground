@@ -47,6 +47,7 @@ class ModelConfig(BaseModel):
     name: str = ""
     endpoint: str
     action_horizon: int = Field(default=4, gt=0)
+    action_type: str = "absolute"
     camera_mapping: dict[str, str] | None = None
 
 

@@ -187,3 +187,41 @@ def test_gripper_clamped_to_limits():
     action_row = np.array([0.0, 0.0, 0.0, -1.0, 0.0, 2.0, 0.0, 0.5], dtype=np.float32)
     actions = adapter.action_chunk_from_openpi(action_row.reshape(1, 8))
     assert abs(actions[0]["gripper_position"] - 0.04) < 1e-5  # clamped to upper limit
+
+
+def test_velocity_action_integration():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="velocity")
+    obs = _make_obs(positions=[0.0, 0.5, 0.0, -1.5, 0.0, 2.0, 0.0])
+    delta_row = np.array([0.1, -0.1, 0.2, -0.2, 0.1, 0.1, -0.1, 0.02], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(delta_row.reshape(1, 8), current_obs=obs)
+    pos = actions[0]["joint_positions"]
+    assert abs(pos[0] - 0.1) < 1e-5  # 0.0 + 0.1
+    assert abs(pos[1] - 0.4) < 1e-5  # 0.5 + (-0.1)
+    assert abs(pos[3] - (-1.7)) < 1e-5  # -1.5 + (-0.2)
+
+
+def test_velocity_action_accumulates_through_chunk():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="velocity")
+    obs = _make_obs(positions=[0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0])
+    delta_row = np.array([0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02], dtype=np.float32)
+    actions_array = np.tile(delta_row, (3, 1))
+    actions = adapter.action_chunk_from_openpi(actions_array, current_obs=obs)
+    assert abs(actions[0]["joint_positions"][0] - 0.1) < 1e-5
+    assert abs(actions[1]["joint_positions"][0] - 0.2) < 1e-5
+    assert abs(actions[2]["joint_positions"][0] - 0.3) < 1e-5
+
+
+def test_velocity_gripper_stays_absolute():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="velocity")
+    obs = _make_obs(positions=[0.0] * 7)
+    action_row = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.03], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(action_row.reshape(1, 8), current_obs=obs)
+    assert abs(actions[0]["gripper_position"] - 0.03) < 1e-5
+
+
+def test_absolute_action_ignores_current_obs():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="absolute")
+    obs = _make_obs(positions=[1.0, 1.0, 1.0, -1.0, 1.0, 2.0, 1.0])
+    action_row = np.array([0.1, 0.2, 0.3, -1.5, 1.0, 2.0, -0.5, 0.02], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(action_row.reshape(1, 8), current_obs=obs)
+    assert abs(actions[0]["joint_positions"][0] - 0.1) < 1e-5
