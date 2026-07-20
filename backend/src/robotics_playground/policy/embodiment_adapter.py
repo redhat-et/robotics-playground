@@ -80,7 +80,9 @@ class EmbodimentAdapter:
         n_joints = len(self._config.joint_names)
         chunk_size = actions_array.shape[0]
 
-        if self._action_type == "velocity" and current_obs is not None:
+        if self._action_type == "velocity":
+            if current_obs is None:
+                raise ValueError("Velocity action mode requires current_obs")
             base_pos = np.array(current_obs["joint_positions"][:n_joints], dtype=np.float64)
         else:
             base_pos = None
