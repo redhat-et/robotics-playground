@@ -33,6 +33,7 @@ PANDA_JOINT_LABELS = [
 _QUEUE_MAXSIZE = 64
 _SENTINEL = None
 _JPEG_QUALITY = 85
+_LOG_TIMEOUT = 2.0
 
 
 def _encode_jpeg(image: np.ndarray) -> bytes:
@@ -68,10 +69,11 @@ class RerunLogger:
             item = self._queue.get()
             if item is _SENTINEL:
                 break
-            try:
-                item()
-            except Exception:
-                logger.exception("Rerun worker: error processing log item")
+            t = threading.Thread(target=item, daemon=True)
+            t.start()
+            t.join(timeout=_LOG_TIMEOUT)
+            if t.is_alive():
+                logger.debug("Rerun log call exceeded %ss timeout, skipping", _LOG_TIMEOUT)
 
     def _submit(self, fn) -> None:
         try:
