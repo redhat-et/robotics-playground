@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 import numpy as np
+import pytest
 
 from robotics_playground.bridges.protocol import Observation
 from robotics_playground.config import EmbodimentConfig
@@ -217,6 +218,13 @@ def test_velocity_gripper_stays_absolute():
     action_row = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.03], dtype=np.float32)
     actions = adapter.action_chunk_from_openpi(action_row.reshape(1, 8), current_obs=obs)
     assert abs(actions[0]["gripper_position"] - 0.03) < 1e-5
+
+
+def test_velocity_without_obs_raises():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="velocity")
+    action_row = np.array([0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02], dtype=np.float32)
+    with pytest.raises(ValueError, match="requires current_obs"):
+        adapter.action_chunk_from_openpi(action_row.reshape(1, 8))
 
 
 def test_absolute_action_ignores_current_obs():
