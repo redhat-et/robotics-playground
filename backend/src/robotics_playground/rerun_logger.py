@@ -63,13 +63,21 @@ class RerunLogger:
 
         self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._worker_thread: threading.Thread | None = None
+        self._recording: rr.RecordingStream | None = None
 
     def _worker_loop(self) -> None:
+        rec = self._recording
+
+        def _run_with_recording(fn):
+            if rec is not None:
+                rr.set_thread_local_data_recording(rec)
+            fn()
+
         while True:
             item = self._queue.get()
             if item is _SENTINEL:
                 break
-            t = threading.Thread(target=item, daemon=True)
+            t = threading.Thread(target=_run_with_recording, args=(item,), daemon=True)
             t.start()
             t.join(timeout=_LOG_TIMEOUT)
             if t.is_alive():
@@ -164,6 +172,7 @@ class RerunLogger:
         def _init():
             try:
                 rr.init("robotics_playground")
+                self._recording = rr.get_global_data_recording()
                 blueprint = self._build_blueprint()
                 rr.serve_grpc(
                     grpc_port=port,
