@@ -66,12 +66,14 @@ class RerunLogger:
         self._recording: rr.RecordingStream | None = None
 
     def _worker_loop(self) -> None:
-        rec = self._recording
-
         def _run_with_recording(fn):
+            rec = self._recording
             if rec is not None:
                 rr.set_thread_local_data_recording(rec)
-            fn()
+            try:
+                fn()
+            except Exception:
+                logger.exception("Rerun log call failed")
 
         while True:
             item = self._queue.get()
