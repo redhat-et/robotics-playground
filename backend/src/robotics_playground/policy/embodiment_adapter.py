@@ -21,6 +21,7 @@ class EmbodimentAdapter:
         config: EmbodimentConfig,
         camera_mapping_override: dict[str, str] | None = None,
         session_id: str = "default",
+        action_type: str = "absolute",
     ):
         self._config = config
         if camera_mapping_override is not None:
@@ -28,6 +29,7 @@ class EmbodimentAdapter:
         else:
             self._camera_mapping = config.camera_mapping
         self._session_id = session_id
+        self._action_type = action_type
 
         # Build reorder indices: URDF order → training order
         self._obs_reorder = [config.joint_names.index(n) for n in config.training_order]
@@ -70,15 +72,31 @@ class EmbodimentAdapter:
         result["session_id"] = self._session_id
         return result
 
-    def action_chunk_from_openpi(self, actions_array: np.ndarray) -> list[Action]:
+    def action_chunk_from_openpi(
+        self,
+        actions_array: np.ndarray,
+        current_obs: Observation | None = None,
+    ) -> list[Action]:
         n_joints = len(self._config.joint_names)
         chunk_size = actions_array.shape[0]
+
+        if self._action_type == "velocity" and current_obs is not None:
+            base_pos = np.array(current_obs["joint_positions"][:n_joints], dtype=np.float64)
+        else:
+            base_pos = None
 
         result = []
         for i in range(chunk_size):
             row = actions_array[i]
-            pos_physical = row[:n_joints].astype(np.float64)
-            pos_urdf = pos_physical[self._act_reorder]
+
+            if base_pos is not None:
+                delta_training = row[:n_joints].astype(np.float64)
+                delta_urdf = delta_training[self._act_reorder]
+                base_pos = base_pos + delta_urdf
+                pos_urdf = base_pos.copy()
+            else:
+                pos_physical = row[:n_joints].astype(np.float64)
+                pos_urdf = pos_physical[self._act_reorder]
 
             if self._lower is not None:
                 pos_urdf = np.clip(pos_urdf, self._lower, self._upper)
