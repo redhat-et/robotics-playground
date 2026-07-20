@@ -174,8 +174,12 @@ class RerunLogger:
                     rec_path.mkdir(parents=True, exist_ok=True)
                     ts = time.strftime("%Y%m%d_%H%M%S")
                     rrd_file = rec_path / f"session_{ts}.rrd"
-                    rr.save(str(rrd_file))
-                    logger.info("Rerun recording to %s", rrd_file)
+                    logger.info(
+                        "Disk recording requested to %s but skipped: "
+                        "Rerun 0.34 rr.save() replaces the gRPC sink. "
+                        "Needs dual-RecordingStream approach.",
+                        rrd_file,
+                    )
                 rr.send_blueprint(blueprint)
                 rr.set_time("step", sequence=0)
                 rr.log(prefix, rr.Clear(recursive=True))
