@@ -249,7 +249,8 @@ class Session:
                     timeout=self._observation_timeout,
                 )
                 self._step = display_step
-                self._logger.log_observation(obs, display_step)
+                log_cams = cycle % 5 == 0
+                self._logger.log_observation(obs, display_step, cameras=log_cams)
 
                 if self._instruction:
                     self._logger.log_instruction(self._instruction, display_step)
