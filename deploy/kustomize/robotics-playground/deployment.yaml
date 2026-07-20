@@ -37,6 +37,8 @@ spec:
             - name: config
               mountPath: /etc/robotics-playground
               readOnly: true
+            - name: rerun-data
+              mountPath: /data/rerun
           readinessProbe:
             httpGet:
               path: /api/health
@@ -74,3 +76,6 @@ spec:
         - name: zenoh-config
           configMap:
             name: zenoh-backend-config
+        - name: rerun-data
+          emptyDir:
+            sizeLimit: 2Gi
