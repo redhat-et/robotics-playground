@@ -15,6 +15,7 @@ class ServerConfig(BaseModel):
 
 class RerunConfig(BaseModel):
     grpc_port: int = 9876
+    recording_dir: str = ""
 
 
 class BridgeConfig(BaseModel):

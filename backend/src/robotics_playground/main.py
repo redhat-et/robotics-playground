@@ -104,6 +104,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         port=config.rerun.grpc_port,
         camera_names=list(config.ros2.cameras.keys()) or None,
         cors_allow_origin=cors_origins,
+        recording_dir=config.rerun.recording_dir,
     )
     rerun_logger.start()
 

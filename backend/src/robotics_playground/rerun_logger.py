@@ -5,6 +5,8 @@ import io
 import logging
 import queue
 import threading
+import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -46,9 +48,11 @@ class RerunLogger:
         policy_index: int = 0,
         camera_names: list[str] | None = None,
         cors_allow_origin: list[str] | None = None,
+        recording_dir: str = "",
     ):
         self._port = port
         self._cors_allow_origin = cors_allow_origin
+        self._recording_dir = recording_dir
         self._prefix = f"session/policy_{policy_index}"
         names = camera_names or ["exterior_1", "exterior_2", "wrist"]
         self._camera_names = sorted(names, key=lambda n: (n == "wrist", n))
@@ -153,6 +157,7 @@ class RerunLogger:
         port = self._port
         cors = self._cors_allow_origin
         prefix = self._prefix
+        recording_dir = self._recording_dir
 
         def _init():
             try:
@@ -161,9 +166,16 @@ class RerunLogger:
                 rr.serve_grpc(
                     grpc_port=port,
                     default_blueprint=blueprint,
-                    server_memory_limit="512MiB",
+                    server_memory_limit="64MiB",
                     cors_allow_origin=cors,
                 )
+                if recording_dir:
+                    rec_path = Path(recording_dir)
+                    rec_path.mkdir(parents=True, exist_ok=True)
+                    ts = time.strftime("%Y%m%d_%H%M%S")
+                    rrd_file = rec_path / f"session_{ts}.rrd"
+                    rr.save(str(rrd_file))
+                    logger.info("Rerun recording to %s", rrd_file)
                 rr.send_blueprint(blueprint)
                 rr.set_time("step", sequence=0)
                 rr.log(prefix, rr.Clear(recursive=True))
@@ -276,14 +288,19 @@ class RerunLogger:
         if not action_chunk:
             return
         first = action_chunk[0]
-        velocities = list(first["joint_velocities"])
+        positions = list(first["joint_positions"])
         gripper = first["gripper_position"]
         prefix = self._prefix
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
-            for j, vel in enumerate(velocities):
-                rr.log(f"{prefix}/intent/joint_{j}_velocity", rr.Scalars(vel))
-            rr.log(f"{prefix}/intent/gripper", rr.Scalars(gripper))
+            for j, pos in enumerate(positions):
+                label = PANDA_JOINT_LABELS[j] if j < len(PANDA_JOINT_LABELS) else f"joint_{j}"
+                rr.log(
+                    f"{prefix}/policy/target/{label}",
+                    rr.Scalars(pos),
+                    rr.SeriesLines(names=[label]),
+                )
+            rr.log(f"{prefix}/policy/target/gripper", rr.Scalars(gripper))
 
         self._submit(_do_log)

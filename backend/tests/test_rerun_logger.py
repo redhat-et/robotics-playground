@@ -193,8 +193,8 @@ def test_log_action_trajectory_no_error(mock_rr):
     logger.start()
     chunk = [
         Action(
-            joint_positions=[math.nan] * 7,
-            joint_velocities=[0.1 * i] * 7,
+            joint_positions=[0.1 * i] * 7,
+            joint_velocities=[math.nan] * 7,
             gripper_position=0.02,
         )
         for i in range(10)
