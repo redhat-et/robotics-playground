@@ -64,16 +64,25 @@ class RerunLogger:
         self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._worker_thread: threading.Thread | None = None
         self._recording: rr.RecordingStream | None = None
+        self._disk_recording: rr.RecordingStream | None = None
 
     def _worker_loop(self) -> None:
         def _run_with_recording(fn):
-            rec = self._recording
-            if rec is not None:
-                rr.set_thread_local_data_recording(rec)
+            disk_rec = self._disk_recording
+            if disk_rec is not None:
+                rr.set_thread_local_data_recording(disk_rec)
+                try:
+                    fn()
+                except Exception:
+                    logger.exception("Rerun disk log failed")
+
+            viewer_rec = self._recording
+            if viewer_rec is not None:
+                rr.set_thread_local_data_recording(viewer_rec)
             try:
                 fn()
             except Exception:
-                logger.exception("Rerun log call failed")
+                logger.exception("Rerun viewer log failed")
 
         while True:
             item = self._queue.get()
@@ -176,21 +185,20 @@ class RerunLogger:
                 rr.init("robotics_playground")
                 self._recording = rr.get_global_data_recording()
                 blueprint = self._build_blueprint()
-                server_uri = rr.serve_grpc(
+                rr.serve_grpc(
                     grpc_port=port,
                     default_blueprint=blueprint,
                     server_memory_limit="64MiB",
                     cors_allow_origin=cors,
                 )
-                sinks = [rr.GrpcSink(url=server_uri)]
                 if recording_dir:
                     rec_path = Path(recording_dir)
                     rec_path.mkdir(parents=True, exist_ok=True)
                     ts = time.strftime("%Y%m%d_%H%M%S")
                     rrd_file = rec_path / f"session_{ts}.rrd"
-                    sinks.append(rr.FileSink(str(rrd_file)))
+                    self._disk_recording = rr.RecordingStream("robotics_playground_disk")
+                    self._disk_recording.save(str(rrd_file))
                     logger.info("Disk recording: %s", rrd_file)
-                rr.set_sinks(*sinks, default_blueprint=blueprint)
                 rr.send_blueprint(blueprint)
                 rr.set_time("step", sequence=0)
                 rr.log(prefix, rr.Clear(recursive=True))
