@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Protocol, TypedDict
 
 import numpy as np
@@ -34,5 +34,9 @@ class RobotBridge(Protocol):
     async def send_action(self, action: Action) -> None: ...
 
     async def sim_control(self, action: str, speed: float | None = None) -> None: ...
+
+    def add_observation_listener(self, callback: Callable[[Observation], None]) -> None: ...
+
+    def remove_observation_listener(self, callback: Callable[[Observation], None]) -> None: ...
 
     async def close(self) -> None: ...

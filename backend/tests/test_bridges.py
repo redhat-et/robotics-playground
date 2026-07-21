@@ -174,6 +174,46 @@ async def test_mock_bridge_tracks_sim_control_calls():
 
 
 @pytest.mark.anyio
+async def test_mock_bridge_observation_listener_called():
+    from robotics_playground.bridges.mock_bridge import MockBridge
+
+    bridge = MockBridge()
+    await bridge.start()
+    received = []
+    bridge.add_observation_listener(lambda obs: received.append(obs))
+    await bridge.get_observation()
+    await bridge.get_observation()
+    assert len(received) == 2
+    assert received[0]["step"] == 0
+    assert received[1]["step"] == 1
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_mock_bridge_remove_observation_listener():
+    from robotics_playground.bridges.mock_bridge import MockBridge
+
+    bridge = MockBridge()
+    await bridge.start()
+    received = []
+    cb = lambda obs: received.append(obs)  # noqa: E731
+    bridge.add_observation_listener(cb)
+    await bridge.get_observation()
+    bridge.remove_observation_listener(cb)
+    await bridge.get_observation()
+    assert len(received) == 1
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_mock_bridge_remove_nonexistent_listener_is_noop():
+    from robotics_playground.bridges.mock_bridge import MockBridge
+
+    bridge = MockBridge()
+    bridge.remove_observation_listener(lambda obs: None)
+
+
+@pytest.mark.anyio
 async def test_create_bridge_returns_mock_by_default():
     from robotics_playground.bridges import create_bridge
     from robotics_playground.bridges.mock_bridge import MockBridge

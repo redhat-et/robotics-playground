@@ -190,6 +190,22 @@ async def test_observation_loop_logs_data():
 
 
 @pytest.mark.anyio
+async def test_observation_listener_removed_after_stop():
+    bridge = MockBridge()
+    await bridge.start()
+    mock_logger = _make_mock_logger()
+    session = Session(
+        bridge=bridge,
+        policy_config=_POLICY_CONFIG,
+        rerun_logger=mock_logger,
+    )
+    await session.start()
+    await asyncio.sleep(0.35)
+    await session.stop()
+    assert len(bridge._obs_listeners) == 0
+
+
+@pytest.mark.anyio
 async def test_stop_does_not_clear_rerun():
     mock_logger = _make_mock_logger()
     session = Session(

@@ -180,6 +180,9 @@ class Session:
         return dispatched
 
     async def _run_loop(self):
+        obs_step = [0]
+        _log_continuous = None
+
         try:
             assert self._adapter is not None
             assert self._policy is not None
@@ -223,7 +226,13 @@ class Session:
                 "Run loop: arm reset complete, joints: %s",
                 [round(p, 4) for p in obs.get("joint_positions", [])[:7]],
             )
-            display_step = 0
+
+            def _log_continuous(o):
+                step = obs_step[0]
+                obs_step[0] += 1
+                self._logger.log_observation(o, step)
+
+            self._bridge.add_observation_listener(_log_continuous)
             cycle = 0
 
             while True:
@@ -248,8 +257,8 @@ class Session:
                     self._bridge.get_observation(),
                     timeout=self._observation_timeout,
                 )
+                display_step = obs_step[0]
                 self._step = display_step
-                self._logger.log_observation(obs, display_step)
 
                 if self._instruction:
                     self._logger.log_instruction(self._instruction, display_step)
@@ -307,14 +316,17 @@ class Session:
                     len(horizon),
                     ACTION_INTERVAL,
                 )
-                dispatched = await self._dispatch_actions(horizon, display_step)
-                display_step += dispatched
+                await self._dispatch_actions(horizon, display_step)
 
                 if stepping:
                     self._paused.clear()
 
         except asyncio.CancelledError:
+            if _log_continuous is not None:
+                self._bridge.remove_observation_listener(_log_continuous)
             raise
         except Exception:
             logger.exception("Run loop crashed")
+            if _log_continuous is not None:
+                self._bridge.remove_observation_listener(_log_continuous)
             self._state = "error"
