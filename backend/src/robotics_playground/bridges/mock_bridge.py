@@ -44,7 +44,7 @@ class MockBridge:
             joint_velocities=velocities,
         )
         self._step += 1
-        for cb in self._obs_listeners:
+        for cb in list(self._obs_listeners):
             cb(obs)
         return obs
 

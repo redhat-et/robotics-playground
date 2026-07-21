@@ -322,11 +322,10 @@ class Session:
                     self._paused.clear()
 
         except asyncio.CancelledError:
-            if _log_continuous is not None:
-                self._bridge.remove_observation_listener(_log_continuous)
             raise
         except Exception:
             logger.exception("Run loop crashed")
+            self._state = "error"
+        finally:
             if _log_continuous is not None:
                 self._bridge.remove_observation_listener(_log_continuous)
-            self._state = "error"

@@ -214,7 +214,7 @@ class ROS2Bridge:
             joint_velocities=list(self._latest_joint_velocities),
         )
         self._step += 1
-        for cb in self._obs_listeners:
+        for cb in list(self._obs_listeners):
             cb(obs)
         self._loop.call_soon_threadsafe(self._try_put, obs)
 
