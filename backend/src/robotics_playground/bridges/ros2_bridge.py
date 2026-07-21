@@ -5,7 +5,7 @@ import contextlib
 import logging
 import threading
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -49,6 +49,7 @@ class ROS2Bridge:
         self._sim_paused = False
         self._enqueue_interval: float = 0.033  # ~30 Hz cap on cross-thread handoff
         self._last_enqueue_time: float = 0.0
+        self._obs_listeners: list[Callable[[Observation], None]] = []
 
     @property
     def bridge_status(self) -> str:
@@ -213,6 +214,8 @@ class ROS2Bridge:
             joint_velocities=list(self._latest_joint_velocities),
         )
         self._step += 1
+        for cb in self._obs_listeners:
+            cb(obs)
         self._loop.call_soon_threadsafe(self._try_put, obs)
 
     def _try_put(self, obs: Observation):
@@ -285,6 +288,13 @@ class ROS2Bridge:
                 msg.data = 1
                 self._teleport_pub.publish(msg)
             self._step = 0
+
+    def add_observation_listener(self, callback: Callable[[Observation], None]) -> None:
+        self._obs_listeners.append(callback)
+
+    def remove_observation_listener(self, callback: Callable[[Observation], None]) -> None:
+        with contextlib.suppress(ValueError):
+            self._obs_listeners.remove(callback)
 
     async def close(self) -> None:
         if self._watchdog_task is not None:

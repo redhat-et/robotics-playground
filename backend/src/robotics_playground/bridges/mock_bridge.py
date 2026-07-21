@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import math
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 
 import numpy as np
 
@@ -17,6 +18,7 @@ class MockBridge:
         self._connected_event.set()
         self.sim_control_calls: list[tuple[str, float | None]] = []
         self.actions_sent: list[Action] = []
+        self._obs_listeners: list[Callable[[Observation], None]] = []
 
     @property
     def bridge_status(self) -> str:
@@ -42,6 +44,8 @@ class MockBridge:
             joint_velocities=velocities,
         )
         self._step += 1
+        for cb in self._obs_listeners:
+            cb(obs)
         return obs
 
     async def get_observation(self) -> Observation:
@@ -64,6 +68,13 @@ class MockBridge:
 
     async def sim_control(self, action: str, speed: float | None = None) -> None:
         self.sim_control_calls.append((action, speed))
+
+    def add_observation_listener(self, callback: Callable[[Observation], None]) -> None:
+        self._obs_listeners.append(callback)
+
+    def remove_observation_listener(self, callback: Callable[[Observation], None]) -> None:
+        with contextlib.suppress(ValueError):
+            self._obs_listeners.remove(callback)
 
     async def close(self) -> None:
         self._status = "disconnected"
