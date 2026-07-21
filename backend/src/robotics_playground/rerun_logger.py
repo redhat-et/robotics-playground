@@ -176,24 +176,21 @@ class RerunLogger:
                 rr.init("robotics_playground")
                 self._recording = rr.get_global_data_recording()
                 blueprint = self._build_blueprint()
-                rr.serve_grpc(
+                server_uri = rr.serve_grpc(
                     grpc_port=port,
                     default_blueprint=blueprint,
                     server_memory_limit="64MiB",
                     cors_allow_origin=cors,
                 )
+                sinks = [rr.GrpcSink(url=server_uri)]
                 if recording_dir:
                     rec_path = Path(recording_dir)
                     rec_path.mkdir(parents=True, exist_ok=True)
                     ts = time.strftime("%Y%m%d_%H%M%S")
                     rrd_file = rec_path / f"session_{ts}.rrd"
-                    logger.warning(
-                        "Disk recording requested to %s but skipped: "
-                        "Rerun 0.34 rr.save() replaces the gRPC sink. "
-                        "Needs dual-RecordingStream approach.",
-                        rrd_file,
-                    )
-                rr.send_blueprint(blueprint)
+                    sinks.append(rr.FileSink(str(rrd_file)))
+                    logger.info("Disk recording: %s", rrd_file)
+                rr.set_sinks(*sinks, default_blueprint=blueprint)
                 rr.set_time("step", sequence=0)
                 rr.log(prefix, rr.Clear(recursive=True))
             except Exception as exc:
