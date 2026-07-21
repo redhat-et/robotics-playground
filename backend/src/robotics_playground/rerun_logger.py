@@ -191,6 +191,7 @@ class RerunLogger:
                     sinks.append(rr.FileSink(str(rrd_file)))
                     logger.info("Disk recording: %s", rrd_file)
                 rr.set_sinks(*sinks, default_blueprint=blueprint)
+                rr.send_blueprint(blueprint)
                 rr.set_time("step", sequence=0)
                 rr.log(prefix, rr.Clear(recursive=True))
             except Exception as exc:
