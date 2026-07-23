@@ -25,22 +25,25 @@ function buildRerunUrl(viewerBase: string, grpcBase: string, assetsUrl?: string)
   return url;
 }
 
-function buildLocalRerunUrl(): string {
-  const host = window.location.hostname;
-  return buildRerunUrl(`${window.location.origin}/rerun`, `http://${host}:9876`);
-}
+const CONFIG_RETRY_MS = 3000;
 
 const VisualizationPanel: React.FC<VisualizationPanelProps> = () => {
   const [rerunUrl, setRerunUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    getBackendConfig().then((cfg) => {
-      if (cfg.rerunViewerUrl && cfg.rerunGrpcUrl) {
-        setRerunUrl(buildRerunUrl(cfg.rerunViewerUrl, cfg.rerunGrpcUrl, cfg.rerunAssetsUrl));
-      } else {
-        setRerunUrl(buildLocalRerunUrl());
-      }
-    });
+    let cancelled = false;
+    const tryLoad = () => {
+      getBackendConfig().then((cfg) => {
+        if (cancelled) return;
+        if (cfg.rerunViewerUrl && cfg.rerunGrpcUrl) {
+          setRerunUrl(buildRerunUrl(cfg.rerunViewerUrl, cfg.rerunGrpcUrl, cfg.rerunAssetsUrl));
+        } else {
+          setTimeout(tryLoad, CONFIG_RETRY_MS);
+        }
+      });
+    };
+    tryLoad();
+    return () => { cancelled = true; };
   }, []);
 
   return (

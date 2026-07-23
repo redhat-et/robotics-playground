@@ -21,14 +21,20 @@ let _configPromise: Promise<BackendConfig> | null = null;
 
 function fetchConfig(): Promise<BackendConfig> {
   return fetch(`${API_BASE}/api/config`)
-    .then((r) => r.json())
+    .then((r) => {
+      if (!r.ok) throw new Error(`config fetch failed: ${r.status}`);
+      return r.json();
+    })
     .then((data: Partial<BackendConfig>) => ({
       wsUrl: data.wsUrl ?? '',
       rerunViewerUrl: data.rerunViewerUrl ?? '',
       rerunGrpcUrl: data.rerunGrpcUrl ?? '',
       rerunAssetsUrl: data.rerunAssetsUrl ?? '',
     }))
-    .catch(() => EMPTY_CONFIG);
+    .catch(() => {
+      _configPromise = null;
+      return EMPTY_CONFIG;
+    });
 }
 
 export function getBackendConfig(): Promise<BackendConfig> {
