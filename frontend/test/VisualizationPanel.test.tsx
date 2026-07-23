@@ -28,13 +28,13 @@ describe('VisualizationPanel', () => {
 
   it('shows empty state while config is loading', () => {
     mockGetBackendConfig.mockReturnValue(new Promise(() => {}));
-    render(<VisualizationPanel connected={false} />);
+    render(<VisualizationPanel />);
     expect(screen.getByText('Connecting to backend...')).toBeInTheDocument();
   });
 
   it('renders Rerun iframe when config succeeds', async () => {
     mockGetBackendConfig.mockResolvedValue(MOCK_CONFIG);
-    render(<VisualizationPanel connected={true} />);
+    render(<VisualizationPanel />);
 
     await act(async () => {
       await vi.runAllTimersAsync();
@@ -47,7 +47,7 @@ describe('VisualizationPanel', () => {
 
   it('iframe src uses config URLs', async () => {
     mockGetBackendConfig.mockResolvedValue(MOCK_CONFIG);
-    render(<VisualizationPanel connected={true} />);
+    render(<VisualizationPanel />);
 
     await act(async () => {
       await vi.runAllTimersAsync();
@@ -63,7 +63,7 @@ describe('VisualizationPanel', () => {
     const EMPTY = { wsUrl: '', rerunViewerUrl: '', rerunGrpcUrl: '', rerunAssetsUrl: '' };
     mockGetBackendConfig.mockResolvedValue(EMPTY);
 
-    render(<VisualizationPanel connected={true} />);
+    render(<VisualizationPanel />);
 
     await act(async () => {
       await Promise.resolve();
@@ -82,10 +82,10 @@ describe('VisualizationPanel', () => {
     expect(iframe?.title).toBe('Rerun Viewer');
   });
 
-  it('does not render iframe when disconnected', () => {
+  it('shows empty state while config is pending', () => {
     mockGetBackendConfig.mockReturnValue(new Promise(() => {}));
-    render(<VisualizationPanel connected={false} />);
-    const iframe = document.querySelector('iframe');
-    expect(iframe).toBeNull();
+    render(<VisualizationPanel />);
+    expect(document.querySelector('iframe')).toBeNull();
+    expect(screen.getByText('Connecting to backend...')).toBeInTheDocument();
   });
 });
