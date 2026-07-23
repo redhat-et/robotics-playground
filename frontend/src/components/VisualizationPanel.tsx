@@ -6,10 +6,6 @@ import {
 import { CubesIcon } from '@patternfly/react-icons';
 import { getBackendConfig } from '../utils/apiBase';
 
-interface VisualizationPanelProps {
-  connected?: boolean;
-}
-
 function toRerunScheme(url: string): string {
   if (url.startsWith('rerun+') || url.startsWith('rerun://')) return url;
   return `rerun+${url}`;
@@ -27,7 +23,7 @@ function buildRerunUrl(viewerBase: string, grpcBase: string, assetsUrl?: string)
 
 const CONFIG_RETRY_MS = 3000;
 
-const VisualizationPanel: React.FC<VisualizationPanelProps> = () => {
+const VisualizationPanel: React.FC = () => {
   const [rerunUrl, setRerunUrl] = useState<string | null>(null);
 
   useEffect(() => {

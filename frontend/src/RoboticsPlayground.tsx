@@ -73,7 +73,7 @@ const RoboticsPlayground: React.FC = () => {
                 onSelectModel={handleSelectModel}
                 disabled={sessionState.state !== 'idle'}
               />
-              <VisualizationPanel connected={connected} />
+              <VisualizationPanel />
             </DrawerContentBody>
           </DrawerContent>
         </Drawer>
