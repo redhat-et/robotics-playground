@@ -29,37 +29,22 @@ async def _observation_logger(
     rerun_logger: RerunLogger,
     stop_event: asyncio.Event,
 ):
-    """Preview-mode observation logger.
+    """Idle-mode Rerun housekeeping.
 
-    When the session is idle, reads observations from the continuously
-    running sim and logs them to Rerun (~2 FPS).  When the session is
-    running, the run loop owns observation consumption, so this task yields.
+    Clears the Rerun timeline after a session ends so the viewer starts
+    fresh for the next run.  Does NOT play the sim — physics only steps
+    when a session is actively running.
     """
-    step = 0
     was_active = False
     while not stop_event.is_set():
         try:
-            if bridge.bridge_status not in ("connected", "connecting"):
-                await asyncio.sleep(0.5)
-                continue
-
             if session.state in ("running", "paused", "error"):
                 was_active = True
-                await asyncio.sleep(0.5)
-                continue
-
-            if was_active:
+            elif was_active:
                 rerun_logger.clear()
-                step = 0
                 was_active = False
 
-            await bridge.sim_control("play")
-            obs = await asyncio.wait_for(bridge.get_observation(), timeout=2.0)
-            rerun_logger.log_observation(obs, step)
-            step += 1
-            await asyncio.sleep(0.5)
-        except TimeoutError:
-            continue
+            await asyncio.sleep(1.0)
         except asyncio.CancelledError:
             break
         except Exception:
