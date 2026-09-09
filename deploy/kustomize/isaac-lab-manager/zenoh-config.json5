@@ -1,0 +1,20 @@
+{
+  mode: "router",
+
+  listen: {
+    endpoints: ["tcp/0.0.0.0:7447"]
+  },
+
+  plugins: {
+    ros2dds: {
+      // Isaac Lab and this bridge are containers in the same Pod,
+      // so localhost-only DDS discovery is intentional.
+      ros_localhost_only: true,
+
+      deny: {
+        publishers: ["/rosout", "/parameter_events"],
+        subscribers: ["/rosout", "/parameter_events"]
+      }
+    }
+  }
+}

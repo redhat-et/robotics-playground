@@ -6,12 +6,6 @@ resources:
   - service-zenoh.yaml
 
 configMapGenerator:
-  - name: isaac-lab-launch-script
-    files:
-      - launch_ros2_scene.py
-    options:
-      disableNameSuffixHash: true
-
   - name: zenoh-isaac-lab-config
     files:
       - config.json5=zenoh-config.json5
