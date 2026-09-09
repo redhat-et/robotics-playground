@@ -20,7 +20,7 @@ data:
       type: "mock"
 
     policy:
-      type: "mock"
+      type: "openpi" #"mock"
       default_model: "dreamzero-v1"
       models:
         dreamzero-v1:

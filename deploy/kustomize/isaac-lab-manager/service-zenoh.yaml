@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  # Keep the existing DNS name expected by the Robotics Playground backend:
+  # isaac-lab-zenoh:7447
+  name: isaac-lab-zenoh
+  labels:
+    app.kubernetes.io/name: isaac-lab
+    app.kubernetes.io/component: zenoh-bridge
+    app.kubernetes.io/part-of: robotics-playground
+    app.kubernetes.io/variant: manager-based
+spec:
+  selector:
+    app.kubernetes.io/name: isaac-lab
+
+  ports:
+    - name: zenoh
+      port: 7447
+      targetPort: zenoh
+      protocol: TCP
