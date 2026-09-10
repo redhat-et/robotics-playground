@@ -11,15 +11,17 @@ can reach the simulator without requiring DDS on the network.
 
 ## Configuration
 
-The following env vars on the `isaac-lab` container control what runs:
+| Variable             | Container      | Default                                                  | Purpose                         |
+|----------------------|----------------|----------------------------------------------------------|---------------------------------|
+| `ENV_GIT_REPO`       | `clone-env`    | `https://github.com/redhat-et/ros2_manager_based_env.git`| Environment git repository      |
+| `ENV_GIT_REF`        | `clone-env`    | `main`                                                   | Branch, tag, or commit to clone |
+| `SIMULATOR_MODULE`   | `isaac-lab`    | `ros2_manager_based_env.custom_env_3_3.run_playground`   | Python module to run            |
+| `ROS_DOMAIN_ID`      | both           | `0`                                                      | ROS 2 domain ID                 |
+| `RMW_IMPLEMENTATION` | `isaac-lab`    | `rmw_fastrtps_cpp`                                       | ROS 2 middleware                |
 
-| Variable           | Default                                                  | Purpose                        |
-|--------------------|----------------------------------------------------------|--------------------------------|
-| `ENV_GIT_REPO`     | `https://github.com/redhat-et/ros2_manager_based_env.git`| Environment git repository     |
-| `ENV_GIT_REF`      | `main`                                                   | Branch, tag, or commit to clone|
-| `SIMULATOR_MODULE` | `ros2_manager_based_env.custom_env_3_3.run_playground`   | Python module to run           |
-| `ROS_DOMAIN_ID`    | `0`                                                      | ROS 2 domain ID                |
-| `RMW_IMPLEMENTATION`| `rmw_fastrtps_cpp`                                      | ROS 2 middleware               |
+`ROS_DOMAIN_ID` must be set consistently on both the `isaac-lab` and
+`zenoh-bridge` containers — a mismatch prevents the bridge from relaying
+simulator topics.
 
 Override these via a Kustomize overlay (e.g. `kustomize edit add patch ...`).
 
