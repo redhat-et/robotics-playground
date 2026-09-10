@@ -1,35 +1,40 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: isaac-lab
+  name: simulator
   labels:
-    app.kubernetes.io/name: isaac-lab
+    app.kubernetes.io/name: simulator
     app.kubernetes.io/component: simulator
     app.kubernetes.io/part-of: robotics-playground
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: isaac-lab
+      app.kubernetes.io/name: simulator
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: isaac-lab
+        app.kubernetes.io/name: simulator
         app.kubernetes.io/component: simulator
         app.kubernetes.io/part-of: robotics-playground
     spec:
       initContainers:
-        - name: clone-manager-based-env
+        - name: clone-env
           image: registry.k8s.io/git-sync/git-sync:v4.7.1
           args:
-            - --repo=https://github.com/redhat-et/ros2_manager_based_env.git
-            - --ref=main
+            - --repo=$(ENV_GIT_REPO)
+            - --ref=$(ENV_GIT_REF)
             - --root=/git
             - --link=repo
             - --depth=1
             - --one-time
+          env:
+            - name: ENV_GIT_REPO
+              value: https://github.com/redhat-et/ros2_manager_based_env.git
+            - name: ENV_GIT_REF
+              value: main
           volumeMounts:
-            - name: manager-env-source
+            - name: env-source
               mountPath: /git
           securityContext:
             runAsNonRoot: true
@@ -46,7 +51,7 @@ spec:
 
       containers:
         - name: isaac-lab
-          image: quay.io/rhn-ee-edushkin/isaac-lab-ros2:2.3.2
+          image: nvcr.io/nvidia/isaac-lab:2.3.2
           imagePullPolicy: Always
           workingDir: /workspace/isaaclab
 
@@ -58,15 +63,13 @@ spec:
             - |
               set -euo pipefail
 
-              echo "=== Manager-Based Isaac Lab runtime ==="
+              echo "=== Simulator runtime ==="
               echo "PWD=$(pwd)"
               echo "HOME=${HOME}"
 
               echo
-              echo "=== Manager-Based env source ==="
+              echo "=== Environment source ==="
               ls -la /git/repo
-              test -f /git/repo/pyproject.toml
-              test -f /git/repo/ros2_manager_based_env/custom_env_3_3/run_playground.py
 
               echo
               echo "=== Isaac Lab version ==="
@@ -95,16 +98,14 @@ spec:
 
               export ISAAC_SIM_PATH=/isaac-sim
               export ROS_DISTRO=jazzy
-              export ROS_DOMAIN_ID=0
+              export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
               export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
 
-              # /git/repo makes the git-sync checkout importable.
-              # ROS2/rclpy must come from Isaac Sim's Python-3.11-compatible bundle.
               export PYTHONPATH="/git/repo:${ISAAC_SIM_PATH}/exts/isaacsim.ros2.bridge/jazzy/rclpy${PYTHONPATH:+:${PYTHONPATH}}"
               export LD_LIBRARY_PATH="${ISAAC_SIM_PATH}/exts/isaacsim.ros2.bridge/jazzy/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 
               echo
-              echo "=== Isaac Sim bundled ROS2 ==="
+              echo "=== ROS 2 configuration ==="
               echo "ROS_DISTRO=${ROS_DISTRO}"
               echo "ROS_DOMAIN_ID=${ROS_DOMAIN_ID}"
               echo "RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION}"
@@ -112,14 +113,14 @@ spec:
               echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}"
 
               echo
-              echo "=== Checking rclpy from Isaac Sim Python ==="
+              echo "=== Checking rclpy ==="
               /workspace/isaaclab/_isaac_sim/python.sh -c \
                 "import rclpy; print('rclpy import OK:', rclpy.__file__)"
 
               echo
-              echo "=== Starting Manager-Based environment ==="
+              echo "=== Starting simulator ==="
               exec ./isaaclab.sh -p \
-                -m ros2_manager_based_env.custom_env_3_3.run_playground \
+                -m "${SIMULATOR_MODULE}" \
                 --headless \
                 --enable_cameras
 
@@ -132,9 +133,11 @@ spec:
               value: "0"
             - name: RMW_IMPLEMENTATION
               value: rmw_fastrtps_cpp
+            - name: SIMULATOR_MODULE
+              value: ros2_manager_based_env.custom_env_3_3.run_playground
 
           volumeMounts:
-            - name: manager-env-source
+            - name: env-source
               mountPath: /git
               readOnly: true
             - name: kit-cache
@@ -175,10 +178,10 @@ spec:
               memory: 256Mi
 
       volumes:
-        - name: manager-env-source
+        - name: env-source
           emptyDir: {}
         - name: zenoh-config
           configMap:
-            name: zenoh-isaac-lab-config
+            name: simulator-zenoh-config
         - name: kit-cache
           emptyDir: {}
