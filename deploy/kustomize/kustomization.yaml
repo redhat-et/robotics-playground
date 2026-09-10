@@ -4,4 +4,4 @@ kind: Kustomization
 resources:
   - robotics-playground/
   - robotics-playground-ui/
-  - isaac-lab-manager/    # isaac-lab/
+  - simulator/
