@@ -80,29 +80,34 @@ class ROS2Bridge:
                 sensor_qos,
             )
 
-        self._node.create_subscription(
-            JointState,
-            self._config.joint_state_topic,
-            self._handle_joint_state,
-            sensor_qos,
-        )
-        self._node.create_subscription(
-            Float32MultiArray,
-            self._config.joint_state_topic,
-            self._handle_float_array_state,
-            sensor_qos,
-        )
+        use_float_array = self._config.state_msg_type == "Float32MultiArray"
+        if use_float_array:
+            self._node.create_subscription(
+                Float32MultiArray,
+                self._config.joint_state_topic,
+                self._handle_float_array_state,
+                sensor_qos,
+            )
+        else:
+            self._node.create_subscription(
+                JointState,
+                self._config.joint_state_topic,
+                self._handle_joint_state,
+                sensor_qos,
+            )
 
-        self._publisher = self._node.create_publisher(
-            JointState,
-            self._config.joint_command_topic,
-            10,
-        )
-        self._float_array_publisher = self._node.create_publisher(
-            Float32MultiArray,
-            self._config.joint_command_topic,
-            10,
-        )
+        if use_float_array:
+            self._float_array_publisher = self._node.create_publisher(
+                Float32MultiArray,
+                self._config.joint_command_topic,
+                10,
+            )
+        else:
+            self._publisher = self._node.create_publisher(
+                JointState,
+                self._config.joint_command_topic,
+                10,
+            )
 
         self._Int32 = Int32
         self._sim_state_pub = self._node.create_publisher(Int32, "/sim_control/state", 10)
