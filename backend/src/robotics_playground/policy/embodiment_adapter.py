@@ -91,6 +91,19 @@ class EmbodimentAdapter:
         for i in range(chunk_size):
             row = actions_array[i]
 
+            if self._action_type == "cartesian_delta":
+                action_dim = min(row.shape[0], n_joints + 1)
+                raw = row[:action_dim].astype(np.float64)
+                gripper_val = float(raw[-1]) if action_dim > n_joints else 0.0
+                result.append(
+                    Action(
+                        joint_positions=raw.tolist(),
+                        joint_velocities=[math.nan] * action_dim,
+                        gripper_position=gripper_val,
+                    )
+                )
+                continue
+
             if base_pos is not None:
                 delta_training = row[:n_joints].astype(np.float64)
                 delta_urdf = delta_training[self._act_reorder]

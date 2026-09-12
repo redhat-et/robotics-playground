@@ -227,6 +227,52 @@ def test_velocity_without_obs_raises():
         adapter.action_chunk_from_openpi(action_row.reshape(1, 8))
 
 
+def test_cartesian_delta_passthrough():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="cartesian_delta")
+    raw = np.array([0.01, -0.02, 0.03, 0.1, -0.1, 0.05, 0.04, 99.0], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(raw.reshape(1, 8))
+    a = actions[0]
+    assert len(a["joint_positions"]) == 8
+    assert abs(a["joint_positions"][0] - 0.01) < 1e-5
+    assert abs(a["joint_positions"][6] - 0.04) < 1e-5
+    assert abs(a["gripper_position"] - 99.0) < 1e-5
+
+
+def test_cartesian_delta_no_reorder():
+    config = EmbodimentConfig(
+        joint_names=["a", "b", "c"],
+        training_order=["c", "a", "b"],
+        joint_limits={"a": [-1, 1], "b": [-1, 1], "c": [-1, 1]},
+        gripper_joint="g",
+        gripper_limits=[0, 1],
+        camera_mapping={},
+    )
+    adapter = EmbodimentAdapter(config, action_type="cartesian_delta")
+    raw = np.array([0.1, 0.2, 0.3, 0.5], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(raw.reshape(1, 4))
+    # Should NOT reorder — values pass through as-is
+    assert abs(actions[0]["joint_positions"][0] - 0.1) < 1e-5
+    assert abs(actions[0]["joint_positions"][1] - 0.2) < 1e-5
+    assert abs(actions[0]["joint_positions"][2] - 0.3) < 1e-5
+
+
+def test_cartesian_delta_no_clamping():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="cartesian_delta")
+    raw = np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 0.5], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(raw.reshape(1, 8))
+    # Values exceed joint limits but should NOT be clamped
+    assert abs(actions[0]["joint_positions"][0] - 5.0) < 1e-5
+
+
+def test_cartesian_delta_no_accumulation():
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="cartesian_delta")
+    raw = np.array([0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(np.tile(raw, (3, 1)))
+    # Each action should be identical — no accumulation
+    for a in actions:
+        assert abs(a["joint_positions"][0] - 0.1) < 1e-5
+
+
 def test_absolute_action_ignores_current_obs():
     adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="absolute")
     obs = _make_obs(positions=[1.0, 1.0, 1.0, -1.0, 1.0, 2.0, 1.0])
