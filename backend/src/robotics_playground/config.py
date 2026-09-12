@@ -31,6 +31,7 @@ class ROS2Config(BaseModel):
     cameras: dict[str, str] = {}
     joint_state_topic: str = "/joint_states"
     joint_command_topic: str = "/joint_commands"
+    state_msg_type: str = "JointState"
     physics_decimation: int = 10
     default_joint_positions: list[float] = []
 
