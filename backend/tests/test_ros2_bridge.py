@@ -182,8 +182,8 @@ async def test_ros2_bridge_send_action_publishes(mock_rclpy):
         }
     )
 
-    mock_publisher.publish.assert_called_once()
-    published_msg = mock_publisher.publish.call_args[0][0]
+    assert mock_publisher.publish.call_count >= 1
+    published_msg = mock_publisher.publish.call_args_list[0][0][0]
     assert len(published_msg.position) == 8
     assert published_msg.position[:7] == [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
     assert published_msg.position[7] == 0.8

@@ -38,6 +38,7 @@ class ROS2Bridge:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._status = "disconnected"
         self._publisher = None
+        self._float_array_publisher = None
         self._owns_rclpy = False
         self._sim_state_pub = None
         self._step_pub = None
@@ -60,7 +61,7 @@ class ROS2Bridge:
         from rclpy.node import Node
         from rclpy.qos import QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import Image, JointState
-        from std_msgs.msg import Int32
+        from std_msgs.msg import Float32MultiArray, Int32
 
         sensor_qos = QoSProfile(
             depth=1,
@@ -85,9 +86,20 @@ class ROS2Bridge:
             self._handle_joint_state,
             sensor_qos,
         )
+        self._node.create_subscription(
+            Float32MultiArray,
+            self._config.joint_state_topic,
+            self._handle_float_array_state,
+            sensor_qos,
+        )
 
         self._publisher = self._node.create_publisher(
             JointState,
+            self._config.joint_command_topic,
+            10,
+        )
+        self._float_array_publisher = self._node.create_publisher(
+            Float32MultiArray,
             self._config.joint_command_topic,
             10,
         )
@@ -115,6 +127,7 @@ class ROS2Bridge:
             self._node.destroy_node()
             self._node = None
         self._publisher = None
+        self._float_array_publisher = None
         self._sim_state_pub = None
         self._step_pub = None
         self._teleport_pub = None
@@ -192,6 +205,10 @@ class ROS2Bridge:
         logger.debug("Joint state received: %d joints", len(msg.position))
         self._on_joint_state_received(list(msg.position), list(msg.velocity))
 
+    def _handle_float_array_state(self, msg):
+        logger.debug("Float array state received: %d values", len(msg.data))
+        self._on_joint_state_received(list(msg.data), [])
+
     def _enqueue_observation(self):
         if self._loop is None or not self._latest_joint_positions:
             return
@@ -253,16 +270,26 @@ class ROS2Bridge:
             yield obs
 
     async def send_action(self, action: Action) -> None:
-        if self._publisher is None or self._node is None:
+        if self._node is None:
             return
         from sensor_msgs.msg import JointState
+        from std_msgs.msg import Float32MultiArray
 
-        msg = JointState()
-        msg.position = [float(p) for p in action["joint_positions"]] + [
+        positions = [float(p) for p in action["joint_positions"]] + [
             float(action["gripper_position"])
         ]
-        msg.velocity = [float(v) for v in action["joint_velocities"]] + [float("nan")]
-        self._publisher.publish(msg)
+        velocities = [float(v) for v in action["joint_velocities"]] + [float("nan")]
+
+        if self._publisher is not None:
+            msg = JointState()
+            msg.position = positions
+            msg.velocity = velocities
+            self._publisher.publish(msg)
+
+        if self._float_array_publisher is not None:
+            msg = Float32MultiArray()
+            msg.data = positions
+            self._float_array_publisher.publish(msg)
 
     async def sim_control(self, action: str, speed: float | None = None) -> None:
         if self._node is None:
