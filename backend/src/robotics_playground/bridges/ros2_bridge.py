@@ -280,12 +280,11 @@ class ROS2Bridge:
         from sensor_msgs.msg import JointState
         from std_msgs.msg import Float32MultiArray
 
-        positions = [float(p) for p in action["joint_positions"]] + [
-            float(action["gripper_position"])
-        ]
-        velocities = [float(v) for v in action["joint_velocities"]] + [float("nan")]
-
         if self._publisher is not None:
+            positions = [float(p) for p in action["joint_positions"]] + [
+                float(action["gripper_position"])
+            ]
+            velocities = [float(v) for v in action["joint_velocities"]] + [float("nan")]
             msg = JointState()
             msg.position = positions
             msg.velocity = velocities
@@ -293,7 +292,7 @@ class ROS2Bridge:
 
         if self._float_array_publisher is not None:
             msg = Float32MultiArray()
-            msg.data = positions
+            msg.data = [float(v) for v in action["joint_positions"]]
             self._float_array_publisher.publish(msg)
 
     async def sim_control(self, action: str, speed: float | None = None) -> None:

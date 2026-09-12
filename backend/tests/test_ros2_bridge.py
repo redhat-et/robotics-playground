@@ -166,7 +166,7 @@ async def test_ros2_bridge_sim_control_without_start_is_noop(mock_rclpy):
 
 
 @pytest.mark.anyio
-async def test_ros2_bridge_send_action_publishes(mock_rclpy):
+async def test_ros2_bridge_send_action_publishes_joint_state(mock_rclpy):
     from robotics_playground.bridges.ros2_bridge import ROS2Bridge
     from robotics_playground.config import ROS2Config
 
@@ -190,6 +190,33 @@ async def test_ros2_bridge_send_action_publishes(mock_rclpy):
     assert len(published_msg.velocity) == 8
     assert published_msg.velocity[:7] == [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
     assert str(published_msg.velocity[7]) == "nan"
+
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_ros2_bridge_send_action_publishes_float_array(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    config = ROS2Config(cameras={"wrist": "/cam/wrist"}, state_msg_type="Float32MultiArray")
+    bridge = ROS2Bridge(config)
+    await bridge.start()
+
+    mock_publisher = bridge._float_array_publisher
+    await bridge.send_action(
+        {
+            "joint_positions": [0.01, -0.02, 0.03, 0.1, -0.1, 0.05, 0.04],
+            "joint_velocities": [float("nan")] * 7,
+            "gripper_position": 0.04,
+        }
+    )
+
+    assert mock_publisher.publish.call_count >= 1
+    published_msg = mock_publisher.publish.call_args_list[0][0][0]
+    # Float32MultiArray sends joint_positions directly — no separate gripper appended
+    assert len(published_msg.data) == 7
+    assert published_msg.data == [0.01, -0.02, 0.03, 0.1, -0.1, 0.05, 0.04]
 
     await bridge.close()
 
