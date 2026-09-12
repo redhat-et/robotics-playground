@@ -56,6 +56,9 @@ spec:
         - name: zenoh-bridge
           image: eclipse/zenoh-bridge-ros2dds:1.9.0
           args: ["-c", "/etc/zenoh/config.json5"]
+          env:
+            - name: ROS_LOCALHOST_ONLY
+              value: "1"
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
