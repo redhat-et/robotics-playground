@@ -250,12 +250,16 @@ async def websocket_session(websocket: WebSocket, session_id: str):
             elif msg_type == "sim_control":
                 action = msg.get("action", "")
                 speed = msg.get("speed")
-                await bridge.sim_control(action, speed=speed)
-                sim_state.on_command(action)
-                session.sim_state = sim_state.state
-                if action == "reset":
-                    rerun_logger.clear()
-                    session.clear_instruction()
+                try:
+                    await bridge.sim_control(action, speed=speed)
+                except Exception:
+                    logger.exception("sim_control failed: %s", action)
+                else:
+                    sim_state.on_command(action)
+                    session.sim_state = sim_state.state
+                    if action == "reset":
+                        rerun_logger.clear()
+                        session.clear_instruction()
 
             elif msg_type == "select_model":
                 model_id = msg.get("model_id", "")
