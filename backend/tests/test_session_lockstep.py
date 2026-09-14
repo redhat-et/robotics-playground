@@ -40,61 +40,82 @@ def _make_mock_logger():
 
 
 @pytest.mark.anyio
-async def test_lockstep_session_runs_and_logs():
+async def test_inference_loop_logs_all_artifacts():
     mock_logger = _make_mock_logger()
     session = Session(
         bridge=MockBridge(),
         policy_config=_POLICY_CONFIG,
         rerun_logger=mock_logger,
     )
-    await session.start()
-    await asyncio.sleep(0.5)
-    await session.stop()
+    await session.start_loop()
+    await session.select_model("mock-v1")
+    await asyncio.sleep(0.2)
 
-    assert mock_logger.log_observation.call_count >= 1
+    session.set_instruction("wave")
+    session.sim_state = "running"
+    await asyncio.sleep(0.8)
+    await session.shutdown()
+
+    assert mock_logger.log_instruction.call_count >= 1
     assert mock_logger.log_raw_action_tensor.call_count >= 1
     assert mock_logger.log_inference_latency.call_count >= 1
     assert mock_logger.log_action_trajectory.call_count >= 1
 
 
 @pytest.mark.anyio
-async def test_lockstep_session_initial_state():
+async def test_inference_loop_advances_step():
     session = Session(
         bridge=MockBridge(),
         policy_config=_POLICY_CONFIG,
         rerun_logger=_make_mock_logger(),
     )
-    assert session.state == "idle"
+    await session.start_loop()
+    await session.select_model("mock-v1")
+    await asyncio.sleep(0.2)
+
+    session.set_instruction("pick up block")
+    session.sim_state = "running"
+    await asyncio.sleep(0.8)
+    step_after = session.step
+    await session.shutdown()
+
+    assert step_after > 0
+
+
+@pytest.mark.anyio
+async def test_no_inference_without_instruction():
+    mock_logger = _make_mock_logger()
+    session = Session(
+        bridge=MockBridge(),
+        policy_config=_POLICY_CONFIG,
+        rerun_logger=mock_logger,
+    )
+    await session.start_loop()
+    await session.select_model("mock-v1")
+    await asyncio.sleep(0.2)
+
+    session.sim_state = "running"
+    await asyncio.sleep(0.5)
+    await session.shutdown()
+
+    assert mock_logger.log_raw_action_tensor.call_count == 0
     assert session.step == 0
 
 
 @pytest.mark.anyio
-async def test_lockstep_session_pause_resume():
+async def test_no_inference_without_policy():
+    mock_logger = _make_mock_logger()
     session = Session(
         bridge=MockBridge(),
         policy_config=_POLICY_CONFIG,
-        rerun_logger=_make_mock_logger(),
+        rerun_logger=mock_logger,
     )
-    await session.start()
-    await session.pause()
-    assert session.state == "paused"
-    await session.resume()
-    assert session.state == "running"
-    await session.stop()
+    await session.start_loop()
 
-
-@pytest.mark.anyio
-async def test_lockstep_session_consumes_observations():
-    session = Session(
-        bridge=MockBridge(),
-        policy_config=_POLICY_CONFIG,
-        rerun_logger=_make_mock_logger(),
-    )
-    await session.start()
+    session.set_instruction("wave")
+    session.sim_state = "running"
     await asyncio.sleep(0.5)
-    step_after_execution = session.step
-    await session.stop()
+    await session.shutdown()
 
-    # MockBridge generates step counter in observations
-    # After executing action chunks, step should have advanced
-    assert step_after_execution > 0
+    assert mock_logger.log_raw_action_tensor.call_count == 0
+    assert session.step == 0

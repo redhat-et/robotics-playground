@@ -3,21 +3,29 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ChatPanel from '../src/components/ChatPanel';
 
+const defaultProps = {
+  messages: [] as { id: string; role: 'user' | 'system'; text: string; timestamp: number }[],
+  onSendInstruction: vi.fn(),
+  onClearInstruction: vi.fn(),
+  connected: true,
+  hasActiveInstruction: false,
+};
+
 describe('ChatPanel', () => {
   it('disables input when not connected', () => {
-    render(<ChatPanel messages={[]} onSendInstruction={vi.fn()} connected={false} />);
+    render(<ChatPanel {...defaultProps} connected={false} />);
     const input = screen.getByPlaceholderText('Tell the robot what to do...');
     expect(input).toBeDisabled();
   });
 
   it('enables input when connected', () => {
-    render(<ChatPanel messages={[]} onSendInstruction={vi.fn()} connected={true} />);
+    render(<ChatPanel {...defaultProps} connected={true} />);
     const input = screen.getByPlaceholderText('Tell the robot what to do...');
     expect(input).not.toBeDisabled();
   });
 
   it('disables send button when input is empty', () => {
-    render(<ChatPanel messages={[]} onSendInstruction={vi.fn()} connected={true} />);
+    render(<ChatPanel {...defaultProps} connected={true} />);
     const button = screen.getByRole('button', { name: 'Send' });
     expect(button).toBeDisabled();
   });
@@ -25,7 +33,7 @@ describe('ChatPanel', () => {
   it('calls onSendInstruction when send button is clicked', async () => {
     const onSend = vi.fn();
     const user = userEvent.setup();
-    render(<ChatPanel messages={[]} onSendInstruction={onSend} connected={true} />);
+    render(<ChatPanel {...defaultProps} onSendInstruction={onSend} connected={true} />);
 
     const input = screen.getByPlaceholderText('Tell the robot what to do...');
     await user.type(input, 'pick up block');
@@ -36,7 +44,7 @@ describe('ChatPanel', () => {
 
   it('clears input after sending', async () => {
     const user = userEvent.setup();
-    render(<ChatPanel messages={[]} onSendInstruction={vi.fn()} connected={true} />);
+    render(<ChatPanel {...defaultProps} connected={true} />);
 
     const input = screen.getByPlaceholderText('Tell the robot what to do...');
     await user.type(input, 'wave');
@@ -48,7 +56,7 @@ describe('ChatPanel', () => {
   it('sends on Enter key', async () => {
     const onSend = vi.fn();
     const user = userEvent.setup();
-    render(<ChatPanel messages={[]} onSendInstruction={onSend} connected={true} />);
+    render(<ChatPanel {...defaultProps} onSendInstruction={onSend} connected={true} />);
 
     const input = screen.getByPlaceholderText('Tell the robot what to do...');
     await user.type(input, 'wave{Enter}');
@@ -59,7 +67,7 @@ describe('ChatPanel', () => {
   it('does not send whitespace-only input', async () => {
     const onSend = vi.fn();
     const user = userEvent.setup();
-    render(<ChatPanel messages={[]} onSendInstruction={onSend} connected={true} />);
+    render(<ChatPanel {...defaultProps} onSendInstruction={onSend} connected={true} />);
 
     const input = screen.getByPlaceholderText('Tell the robot what to do...');
     await user.type(input, '   {Enter}');
@@ -72,7 +80,7 @@ describe('ChatPanel', () => {
       { id: '1', role: 'user' as const, text: 'Pick up block', timestamp: 1 },
       { id: '2', role: 'system' as const, text: 'received: Pick up block', timestamp: 2 },
     ];
-    render(<ChatPanel messages={messages} onSendInstruction={vi.fn()} connected={true} />);
+    render(<ChatPanel {...defaultProps} messages={messages} connected={true} />);
     expect(screen.getByText('Pick up block')).toBeInTheDocument();
     expect(screen.getByText('received: Pick up block')).toBeInTheDocument();
   });
@@ -81,7 +89,7 @@ describe('ChatPanel', () => {
     const messages = [
       { id: '1', role: 'user' as const, text: 'test message', timestamp: 1 },
     ];
-    render(<ChatPanel messages={messages} onSendInstruction={vi.fn()} connected={true} />);
+    render(<ChatPanel {...defaultProps} messages={messages} connected={true} />);
     const messageEl = screen.getByText('test message').closest('.chat-panel__message');
     expect(messageEl).toHaveClass('chat-panel__message--user');
   });
@@ -90,8 +98,29 @@ describe('ChatPanel', () => {
     const messages = [
       { id: '1', role: 'system' as const, text: 'system msg', timestamp: 1 },
     ];
-    render(<ChatPanel messages={messages} onSendInstruction={vi.fn()} connected={true} />);
+    render(<ChatPanel {...defaultProps} messages={messages} connected={true} />);
     const messageEl = screen.getByText('system msg').closest('.chat-panel__message');
     expect(messageEl).toHaveClass('chat-panel__message--system');
+  });
+
+  it('disables clear button when no active instruction', () => {
+    render(<ChatPanel {...defaultProps} hasActiveInstruction={false} />);
+    const clearBtn = screen.getByRole('button', { name: 'Clear instruction' });
+    expect(clearBtn).toBeDisabled();
+  });
+
+  it('enables clear button when instruction is active', () => {
+    render(<ChatPanel {...defaultProps} hasActiveInstruction={true} />);
+    const clearBtn = screen.getByRole('button', { name: 'Clear instruction' });
+    expect(clearBtn).not.toBeDisabled();
+  });
+
+  it('calls onClearInstruction when clear button is clicked', async () => {
+    const onClear = vi.fn();
+    const user = userEvent.setup();
+    render(<ChatPanel {...defaultProps} onClearInstruction={onClear} hasActiveInstruction={true} />);
+
+    await user.click(screen.getByRole('button', { name: 'Clear instruction' }));
+    expect(onClear).toHaveBeenCalledOnce();
   });
 });

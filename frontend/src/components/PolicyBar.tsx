@@ -5,6 +5,7 @@ import {
   FlexItem,
   FormSelect,
   FormSelectOption,
+  Label,
   Spinner,
 } from '@patternfly/react-core';
 import { BarsIcon } from '@patternfly/react-icons';
@@ -21,10 +22,17 @@ interface PolicyBarProps {
   onToggleSidebar: () => void;
   selectedModel: string;
   onSelectModel: (modelId: string) => void;
-  disabled?: boolean;
+  policyStatus: string;
 }
 
-const PolicyBar: React.FC<PolicyBarProps> = ({ isSidebarOpen, onToggleSidebar, selectedModel, onSelectModel, disabled }) => {
+const POLICY_LABELS: Record<string, { text: string; color: 'grey' | 'green' | 'orange' | 'red' }> = {
+  disconnected: { text: 'Not connected', color: 'grey' },
+  connecting: { text: 'Connecting', color: 'orange' },
+  connected: { text: 'Connected', color: 'green' },
+  error: { text: 'Error', color: 'red' },
+};
+
+const PolicyBar: React.FC<PolicyBarProps> = ({ isSidebarOpen, onToggleSidebar, selectedModel, onSelectModel, policyStatus }) => {
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,6 +48,8 @@ const PolicyBar: React.FC<PolicyBarProps> = ({ isSidebarOpen, onToggleSidebar, s
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const policyLabel = POLICY_LABELS[policyStatus] ?? POLICY_LABELS.disconnected;
 
   return (
     <Flex
@@ -67,21 +77,21 @@ const PolicyBar: React.FC<PolicyBarProps> = ({ isSidebarOpen, onToggleSidebar, s
               value={selectedModel}
               onChange={(_event, value) => onSelectModel(value)}
               aria-label="Select policy"
-              isDisabled={disabled || models.length === 0}
+              isDisabled={models.length === 0}
             >
-              {models.length === 0 ? (
-                <FormSelectOption key="none" value="" label="No models available" isDisabled />
-              ) : (
-                models.map((model) => (
-                  <FormSelectOption
-                    key={model.id}
-                    value={model.id}
-                    label={model.name}
-                  />
-                ))
-              )}
+              <FormSelectOption key="none" value="" label="— Select model —" />
+              {models.map((model) => (
+                <FormSelectOption
+                  key={model.id}
+                  value={model.id}
+                  label={model.name}
+                />
+              ))}
             </FormSelect>
           )}
+        </FlexItem>
+        <FlexItem>
+          <Label color={policyLabel.color}>{policyLabel.text}</Label>
         </FlexItem>
       </Flex>
       <FlexItem>

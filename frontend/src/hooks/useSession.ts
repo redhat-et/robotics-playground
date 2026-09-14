@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE, getWsBase } from '../utils/apiBase';
 
 export interface SessionState {
-  state: string;
-  step: number;
-  instruction: string;
-  bridgeStatus: string;
+  simStatus: string;
+  simState: string;
+  policyStatus: string;
   modelId: string;
+  instruction: string;
+  step: number;
 }
 
 export interface ChatMessage {
@@ -21,6 +22,7 @@ export interface UseSessionReturn {
   sessionState: SessionState;
   messages: ChatMessage[];
   sendInstruction: (text: string) => void;
+  sendClearInstruction: () => void;
   sendSimControl: (action: string, speed?: number) => void;
   sendSelectModel: (modelId: string) => void;
 }
@@ -32,11 +34,12 @@ export function useSession(sessionId: string): UseSessionReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [sessionState, setSessionState] = useState<SessionState>({
-    state: 'idle',
-    step: 0,
-    instruction: '',
-    bridgeStatus: 'mock',
+    simStatus: 'disconnected',
+    simState: 'idle',
+    policyStatus: 'disconnected',
     modelId: '',
+    instruction: '',
+    step: 0,
   });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
@@ -62,18 +65,13 @@ export function useSession(sessionId: string): UseSessionReturn {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'status') {
-            setSessionState((prev) => {
-              const newState = msg.state ?? 'idle';
-              if (newState === 'idle' && prev.state !== 'idle') {
-                setMessages([]);
-              }
-              return {
-                state: newState,
-                step: msg.step ?? 0,
-                instruction: msg.instruction ?? '',
-                bridgeStatus: msg.bridge_status ?? 'mock',
-                modelId: msg.model_id ?? '',
-              };
+            setSessionState({
+              simStatus: msg.sim_status ?? 'disconnected',
+              simState: msg.sim_state ?? 'idle',
+              policyStatus: msg.policy_status ?? 'disconnected',
+              modelId: msg.model_id ?? '',
+              instruction: msg.instruction ?? '',
+              step: msg.step ?? 0,
             });
           } else if (msg.type === 'instruction_ack') {
             setMessages((prev) => [
@@ -128,6 +126,13 @@ export function useSession(sessionId: string): UseSessionReturn {
     }
   }, []);
 
+  const sendClearInstruction = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'clear_instruction' }));
+      setMessages([]);
+    }
+  }, []);
+
   const sendSimControl = useCallback((action: string, speed?: number) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const msg: Record<string, unknown> = { type: 'sim_control', action };
@@ -144,5 +149,5 @@ export function useSession(sessionId: string): UseSessionReturn {
     }
   }, []);
 
-  return { connected, sessionState, messages, sendInstruction, sendSimControl, sendSelectModel };
+  return { connected, sessionState, messages, sendInstruction, sendClearInstruction, sendSimControl, sendSelectModel };
 }
