@@ -22,7 +22,7 @@ const SESSION_ID = 'default';
 
 const RoboticsPlayground: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState('');
-  const { connected, sessionState, messages, sendInstruction, sendSimControl, sendSelectModel } =
+  const { connected, sessionState, messages, sendInstruction, sendClearInstruction, sendSimControl, sendSelectModel } =
     useSession(SESSION_ID);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -38,11 +38,13 @@ const RoboticsPlayground: React.FC = () => {
         <ChatPanel
           messages={messages}
           onSendInstruction={sendInstruction}
+          onClearInstruction={sendClearInstruction}
           connected={connected}
+          hasActiveInstruction={!!sessionState.instruction}
         />
         <SimulationControlPanel
-          state={sessionState.state}
-          bridgeStatus={sessionState.bridgeStatus}
+          simStatus={sessionState.simStatus}
+          simState={sessionState.simState}
           onSimControl={sendSimControl}
         />
       </DrawerPanelBody>
@@ -71,7 +73,7 @@ const RoboticsPlayground: React.FC = () => {
                 onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
                 selectedModel={selectedModel}
                 onSelectModel={handleSelectModel}
-                disabled={sessionState.state !== 'idle'}
+                policyStatus={sessionState.policyStatus}
               />
               <VisualizationPanel />
             </DrawerContentBody>

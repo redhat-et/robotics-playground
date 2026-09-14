@@ -83,18 +83,24 @@ describe('useSession', () => {
     act(() => {
       MockWebSocket.instances[0].simulateMessage({
         type: 'status',
-        state: 'running',
+        sim_status: 'connected',
+        sim_state: 'running',
+        policy_status: 'connected',
         step: 42,
         instruction: 'wave',
+        model_id: 'mock-v1',
       });
     });
 
-    expect(result.current.sessionState.state).toBe('running');
+    expect(result.current.sessionState.simState).toBe('running');
+    expect(result.current.sessionState.simStatus).toBe('connected');
+    expect(result.current.sessionState.policyStatus).toBe('connected');
     expect(result.current.sessionState.step).toBe(42);
     expect(result.current.sessionState.instruction).toBe('wave');
+    expect(result.current.sessionState.modelId).toBe('mock-v1');
   });
 
-  it('parses bridge_status from status messages', async () => {
+  it('parses sim_status from status messages', async () => {
     const { result } = renderHook(() => useSession('test-session'));
 
     await act(async () => {
@@ -104,17 +110,16 @@ describe('useSession', () => {
     act(() => {
       MockWebSocket.instances[0].simulateMessage({
         type: 'status',
-        state: 'idle',
-        step: 0,
-        instruction: '',
-        bridge_status: 'connected',
+        sim_status: 'connected',
+        sim_state: 'idle',
+        policy_status: 'disconnected',
       });
     });
 
-    expect(result.current.sessionState.bridgeStatus).toBe('connected');
+    expect(result.current.sessionState.simStatus).toBe('connected');
   });
 
-  it('defaults bridgeStatus to mock when not present', async () => {
+  it('defaults simStatus to disconnected when not present', async () => {
     const { result } = renderHook(() => useSession('test-session'));
 
     await act(async () => {
@@ -125,7 +130,21 @@ describe('useSession', () => {
       MockWebSocket.instances[0].simulateMessage({ type: 'status' });
     });
 
-    expect(result.current.sessionState.bridgeStatus).toBe('mock');
+    expect(result.current.sessionState.simStatus).toBe('disconnected');
+  });
+
+  it('defaults policyStatus to disconnected when not present', async () => {
+    const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    act(() => {
+      MockWebSocket.instances[0].simulateMessage({ type: 'status' });
+    });
+
+    expect(result.current.sessionState.policyStatus).toBe('disconnected');
   });
 
   it('adds ack messages to chat on instruction_ack', async () => {
@@ -166,6 +185,21 @@ describe('useSession', () => {
     expect(result.current.messages).toHaveLength(1);
     expect(result.current.messages[0].role).toBe('user');
     expect(result.current.messages[0].text).toBe('pick up block');
+  });
+
+  it('sendClearInstruction sends clear_instruction message', async () => {
+    const { result } = renderHook(() => useSession('test-session'));
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+
+    act(() => {
+      result.current.sendClearInstruction();
+    });
+
+    const sent = JSON.parse(MockWebSocket.instances[0].sent[0]);
+    expect(sent.type).toBe('clear_instruction');
   });
 
   it('sendSimControl sends JSON with action', async () => {
@@ -243,7 +277,7 @@ describe('useSession', () => {
       MockWebSocket.instances[0].onmessage?.({ data: 'not json' });
     });
 
-    expect(result.current.sessionState.state).toBe('idle');
+    expect(result.current.sessionState.simState).toBe('idle');
   });
 
   it('defaults missing fields in status messages', async () => {
@@ -257,7 +291,7 @@ describe('useSession', () => {
       MockWebSocket.instances[0].simulateMessage({ type: 'status' });
     });
 
-    expect(result.current.sessionState.state).toBe('idle');
+    expect(result.current.sessionState.simState).toBe('idle');
     expect(result.current.sessionState.step).toBe(0);
     expect(result.current.sessionState.instruction).toBe('');
   });
@@ -284,10 +318,9 @@ describe('useSession', () => {
     act(() => {
       MockWebSocket.instances[0].simulateMessage({
         type: 'status',
-        state: 'idle',
-        step: 0,
-        instruction: '',
-        bridge_status: 'connected',
+        sim_status: 'connected',
+        sim_state: 'idle',
+        policy_status: 'disconnected',
         model_id: 'pi05-v1',
       });
     });

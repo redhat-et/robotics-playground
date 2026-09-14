@@ -9,34 +9,27 @@ import {
 } from '@patternfly/react-core';
 
 interface SimulationControlPanelProps {
-  state: string;
-  bridgeStatus: string;
+  simStatus: string;
+  simState: string;
   onSimControl: (action: string, speed?: number) => void;
 }
 
-const STATE_LABELS: Record<string, { text: string; color: 'grey' | 'green' | 'orange' | 'red' }> = {
-  idle: { text: 'Idle', color: 'grey' },
-  running: { text: 'Running', color: 'green' },
-  paused: { text: 'Paused', color: 'orange' },
-  error: { text: 'Error', color: 'red' },
-};
-
-const BRIDGE_LABELS: Record<string, { text: string; color: 'grey' | 'green' | 'red' }> = {
-  mock: { text: 'Mock', color: 'grey' },
-  connected: { text: 'Connected', color: 'green' },
+const SIM_STATUS_LABELS: Record<string, { text: string; color: 'grey' | 'green' | 'orange' | 'red' }> = {
   disconnected: { text: 'Disconnected', color: 'red' },
+  connecting: { text: 'Connecting', color: 'orange' },
+  connected: { text: 'Connected', color: 'green' },
+  mock: { text: 'Mock', color: 'grey' },
 };
 
 const SimulationControlPanel: React.FC<SimulationControlPanelProps> = ({
-  state,
-  bridgeStatus,
+  simStatus,
+  simState,
   onSimControl,
 }) => {
   const [speed, setSpeed] = useState(1.0);
-  const label = STATE_LABELS[state] ?? STATE_LABELS.idle;
-  const bridgeLabel = BRIDGE_LABELS[bridgeStatus] ?? BRIDGE_LABELS.mock;
-  const isRunning = state === 'running';
-  const isPaused = state === 'paused';
+  const statusLabel = SIM_STATUS_LABELS[simStatus] ?? SIM_STATUS_LABELS.disconnected;
+  const isRunning = simState === 'running';
+  const isPaused = simState === 'paused';
 
   return (
     <div className="simulation-control-panel">
@@ -45,14 +38,7 @@ const SimulationControlPanel: React.FC<SimulationControlPanelProps> = ({
           <Content component="h2" style={{ margin: 0 }}>Simulation Control</Content>
         </FlexItem>
         <FlexItem>
-          <Flex spaceItems={{ default: 'spaceItemsSm' }}>
-            <FlexItem>
-              <Label color={bridgeLabel.color}>{bridgeLabel.text}</Label>
-            </FlexItem>
-            <FlexItem>
-              <Label color={label.color}>{label.text}</Label>
-            </FlexItem>
-          </Flex>
+          <Label color={statusLabel.color}>Sim: {statusLabel.text}</Label>
         </FlexItem>
       </Flex>
       <Flex alignItems={{ default: 'alignItemsCenter' }}>
@@ -61,6 +47,7 @@ const SimulationControlPanel: React.FC<SimulationControlPanelProps> = ({
             variant="primary"
             size="sm"
             onClick={() => onSimControl(isRunning ? 'pause' : 'play', speed)}
+            isDisabled={simStatus !== 'connected'}
           >
             {isRunning ? 'Pause' : 'Play'}
           </Button>
@@ -80,7 +67,7 @@ const SimulationControlPanel: React.FC<SimulationControlPanelProps> = ({
             variant="secondary"
             size="sm"
             onClick={() => onSimControl('step')}
-            isDisabled={isRunning}
+            isDisabled={isRunning || simStatus !== 'connected'}
           >
             Step
           </Button>
@@ -90,7 +77,7 @@ const SimulationControlPanel: React.FC<SimulationControlPanelProps> = ({
             variant="secondary"
             size="sm"
             onClick={() => onSimControl('reset')}
-            isDisabled={bridgeStatus !== 'connected'}
+            isDisabled={simStatus !== 'connected'}
           >
             Reset
           </Button>

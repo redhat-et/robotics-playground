@@ -4,27 +4,20 @@ import userEvent from '@testing-library/user-event';
 import SimulationControlPanel from '../src/components/SimulationControlPanel';
 
 describe('SimulationControlPanel', () => {
-  it('shows Idle label and Play button when idle', () => {
-    render(<SimulationControlPanel state="idle" bridgeStatus="mock" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Idle')).toBeInTheDocument();
+  it('shows Play button when idle', () => {
+    render(<SimulationControlPanel simState="idle" simStatus="connected" onSimControl={vi.fn()} />);
     expect(screen.getByText('Play')).toBeInTheDocument();
   });
 
-  it('shows Running label and Pause button when running', () => {
-    render(<SimulationControlPanel state="running" bridgeStatus="mock" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Running')).toBeInTheDocument();
+  it('shows Pause button when running', () => {
+    render(<SimulationControlPanel simState="running" simStatus="connected" onSimControl={vi.fn()} />);
     expect(screen.getByText('Pause')).toBeInTheDocument();
-  });
-
-  it('shows Paused label when paused', () => {
-    render(<SimulationControlPanel state="paused" bridgeStatus="mock" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Paused')).toBeInTheDocument();
   });
 
   it('calls onSimControl with play and speed when Play is clicked', async () => {
     const onControl = vi.fn();
     const user = userEvent.setup();
-    render(<SimulationControlPanel state="idle" bridgeStatus="mock" onSimControl={onControl} />);
+    render(<SimulationControlPanel simState="idle" simStatus="connected" onSimControl={onControl} />);
 
     await user.click(screen.getByText('Play'));
     expect(onControl).toHaveBeenCalledWith('play', 1.0);
@@ -33,7 +26,7 @@ describe('SimulationControlPanel', () => {
   it('calls onSimControl with pause and speed when Pause is clicked', async () => {
     const onControl = vi.fn();
     const user = userEvent.setup();
-    render(<SimulationControlPanel state="running" bridgeStatus="mock" onSimControl={onControl} />);
+    render(<SimulationControlPanel simState="running" simStatus="connected" onSimControl={onControl} />);
 
     await user.click(screen.getByText('Pause'));
     expect(onControl).toHaveBeenCalledWith('pause', 1.0);
@@ -42,26 +35,26 @@ describe('SimulationControlPanel', () => {
   it('calls onSimControl with stop when Stop is clicked', async () => {
     const onControl = vi.fn();
     const user = userEvent.setup();
-    render(<SimulationControlPanel state="running" bridgeStatus="mock" onSimControl={onControl} />);
+    render(<SimulationControlPanel simState="running" simStatus="connected" onSimControl={onControl} />);
 
     await user.click(screen.getByText('Stop'));
     expect(onControl).toHaveBeenCalledWith('stop');
   });
 
   it('disables Stop button when idle', () => {
-    render(<SimulationControlPanel state="idle" bridgeStatus="mock" onSimControl={vi.fn()} />);
+    render(<SimulationControlPanel simState="idle" simStatus="connected" onSimControl={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Stop' })).toBeDisabled();
   });
 
   it('disables Step button when running', () => {
-    render(<SimulationControlPanel state="running" bridgeStatus="mock" onSimControl={vi.fn()} />);
+    render(<SimulationControlPanel simState="running" simStatus="connected" onSimControl={vi.fn()} />);
     expect(screen.getByRole('button', { name: 'Step' })).toBeDisabled();
   });
 
-  it('enables Step button when paused', async () => {
+  it('enables Step button when idle and connected', async () => {
     const onControl = vi.fn();
     const user = userEvent.setup();
-    render(<SimulationControlPanel state="paused" bridgeStatus="mock" onSimControl={onControl} />);
+    render(<SimulationControlPanel simState="idle" simStatus="connected" onSimControl={onControl} />);
 
     const stepBtn = screen.getByRole('button', { name: 'Step' });
     expect(stepBtn).not.toBeDisabled();
@@ -72,50 +65,40 @@ describe('SimulationControlPanel', () => {
   it('calls onSimControl with reset when Reset is clicked', async () => {
     const onControl = vi.fn();
     const user = userEvent.setup();
-    render(<SimulationControlPanel state="running" bridgeStatus="connected" onSimControl={onControl} />);
+    render(<SimulationControlPanel simState="running" simStatus="connected" onSimControl={onControl} />);
 
     await user.click(screen.getByText('Reset'));
     expect(onControl).toHaveBeenCalledWith('reset');
   });
 
-  it('disables Reset when bridge is disconnected', () => {
-    render(<SimulationControlPanel state="running" bridgeStatus="disconnected" onSimControl={vi.fn()} />);
-    const resetButton = screen.getByText('Reset');
-    expect(resetButton.closest('button')).toBeDisabled();
+  it('disables Play and Step when sim is disconnected', () => {
+    render(<SimulationControlPanel simState="idle" simStatus="disconnected" onSimControl={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /Play/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Step' })).toBeDisabled();
   });
 
-  it('shows Error label for error state', () => {
-    render(<SimulationControlPanel state="error" bridgeStatus="mock" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Error')).toBeInTheDocument();
+  it('shows sim status badge', () => {
+    render(<SimulationControlPanel simState="idle" simStatus="connected" onSimControl={vi.fn()} />);
+    expect(screen.getByText('Sim: Connected')).toBeInTheDocument();
   });
 
-  it('falls back to Idle label for unknown state', () => {
-    render(<SimulationControlPanel state="bogus" bridgeStatus="mock" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Idle')).toBeInTheDocument();
+  it('shows Mock status badge', () => {
+    render(<SimulationControlPanel simState="idle" simStatus="mock" onSimControl={vi.fn()} />);
+    expect(screen.getByText('Sim: Mock')).toBeInTheDocument();
   });
 
-  it('renders bridge status label for mock', () => {
-    render(<SimulationControlPanel state="idle" bridgeStatus="mock" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Mock')).toBeInTheDocument();
-  });
-
-  it('shows Connected label for connected bridge', () => {
-    render(<SimulationControlPanel state="running" bridgeStatus="connected" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Connected')).toBeInTheDocument();
-  });
-
-  it('shows Disconnected label for disconnected bridge', () => {
-    render(<SimulationControlPanel state="idle" bridgeStatus="disconnected" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Disconnected')).toBeInTheDocument();
+  it('shows Disconnected status badge', () => {
+    render(<SimulationControlPanel simState="idle" simStatus="disconnected" onSimControl={vi.fn()} />);
+    expect(screen.getByText('Sim: Disconnected')).toBeInTheDocument();
   });
 
   it('renders speed slider', () => {
-    render(<SimulationControlPanel state="running" bridgeStatus="mock" onSimControl={vi.fn()} />);
+    render(<SimulationControlPanel simState="running" simStatus="connected" onSimControl={vi.fn()} />);
     expect(screen.getByRole('slider')).toBeInTheDocument();
   });
 
   it('shows speed label', () => {
-    render(<SimulationControlPanel state="idle" bridgeStatus="mock" onSimControl={vi.fn()} />);
+    render(<SimulationControlPanel simState="idle" simStatus="connected" onSimControl={vi.fn()} />);
     expect(screen.getByText('Speed: 1.0x')).toBeInTheDocument();
   });
 });

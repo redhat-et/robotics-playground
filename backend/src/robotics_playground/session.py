@@ -20,11 +20,16 @@ if TYPE_CHECKING:
     from robotics_playground.rerun_logger import RerunLogger
 
 
-DEFAULT_INSTRUCTION = "Stay still and do not move."
-ACTION_INTERVAL = 0.5  # seconds between waypoints — PD controller convergence time
+ACTION_INTERVAL = 0.5
 
 
 class Session:
+    """Condition-driven inference loop.
+
+    The loop activates automatically when three conditions are met:
+    sim is running, policy is connected, and an instruction is set.
+    """
+
     def __init__(
         self,
         bridge: RobotBridge,
@@ -35,255 +40,191 @@ class Session:
         self._bridge = bridge
         self._policy_config = policy_config
         self._logger = rerun_logger
-        self._model_id = policy_config.default_model
+        self._observation_timeout = observation_timeout
+
+        self._model_id: str = ""
         self._policy: PolicyClient | None = None
         self._adapter: EmbodimentAdapter | None = None
         self._action_horizon: int = 4
-        self._observation_timeout = observation_timeout
-        self._task: asyncio.Task | None = None
-        self._instruction: str = DEFAULT_INSTRUCTION
-        self._state: str = "idle"
+
+        self._policy_status: str = "disconnected"
+        self._connect_task: asyncio.Task | None = None
+
+        self._sim_state: str = "idle"
+        self._instruction: str = ""
         self._step: int = 0
-        self._paused = asyncio.Event()
-        self._paused.set()
-        self._step_once = asyncio.Event()
+
+        self._loop_task: asyncio.Task | None = None
+        self._conditions_changed = asyncio.Event()
 
     @property
-    def state(self) -> str:
-        return self._state
+    def policy_status(self) -> str:
+        return self._policy_status
 
     @property
-    def step(self) -> int:
-        return self._step
+    def model_id(self) -> str:
+        return self._model_id
+
+    @property
+    def sim_state(self) -> str:
+        return self._sim_state
+
+    @sim_state.setter
+    def sim_state(self, value: str) -> None:
+        self._sim_state = value
+        self._conditions_changed.set()
 
     @property
     def instruction(self) -> str:
         return self._instruction
 
     @property
-    def bridge_status(self) -> str:
-        return self._bridge.bridge_status
+    def step(self) -> int:
+        return self._step
 
     @property
-    def model_id(self) -> str:
-        return self._model_id
+    def inferring(self) -> bool:
+        return (
+            self._sim_state == "running"
+            and self._policy_status == "connected"
+            and bool(self._instruction)
+        )
 
-    def send_instruction(self, text: str):
+    def set_instruction(self, text: str) -> None:
         self._instruction = text
+        self._conditions_changed.set()
 
-    def select_model(self, model_id: str) -> None:
-        if self._state != "idle":
-            raise ValueError("Model can only be changed while idle")
+    def clear_instruction(self) -> None:
+        self._instruction = ""
+        self._step = 0
+        self._conditions_changed.set()
+
+    async def select_model(self, model_id: str) -> None:
+        if model_id == self._model_id:
+            return
+        await self._disconnect_policy()
+        if not model_id:
+            self._model_id = ""
+            return
         if model_id not in self._policy_config.models:
-            raise ValueError(f"Unknown model: {model_id}")
+            logger.warning("Unknown model: %s", model_id)
+            return
         self._model_id = model_id
+        self._start_policy_connect()
 
-    async def start(self):
-        if self._task is not None:
-            return
-
-        model_config = self._policy_config.models.get(self._model_id)
-        if model_config:
-            self._action_horizon = model_config.action_horizon
-            camera_override = model_config.camera_mapping
-            self._adapter = EmbodimentAdapter(
-                self._policy_config.embodiment,
-                camera_mapping_override=camera_override,
-                action_type=model_config.action_type,
-            )
-            self._policy = create_policy(self._policy_config.type, model_config.endpoint)
-        elif not self._policy_config.models:
-            # Mock mode: no models configured
-            self._adapter = EmbodimentAdapter(self._policy_config.embodiment)
-            self._policy = create_policy(self._policy_config.type, "")
-        else:
-            raise ValueError(
-                f"Model '{self._model_id}' not found in config. "
-                f"Available models: {list(self._policy_config.models.keys())}"
-            )
-
-        logger.info("Session starting: policy.connect() for model %s", self._model_id)
-        self._paused.set()
-        await self._policy.connect()
-        self._state = "running"
-        self._task = asyncio.create_task(self._run_loop())
-        logger.info("Session started, run loop task created")
-
-    async def stop(self):
-        if self._task is None:
-            return
-        await self._bridge.sim_control("pause")
-        self._task.cancel()
-        self._paused.set()
-        self._step_once.clear()
-        with contextlib.suppress(asyncio.CancelledError):
-            await self._task
-        self._task = None
-        if self._policy:
+    async def _disconnect_policy(self) -> None:
+        if self._connect_task is not None:
+            self._connect_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._connect_task
+            self._connect_task = None
+        if self._policy is not None:
             await self._policy.close()
             self._policy = None
         self._adapter = None
-        self._state = "idle"
-        self._step = 0
+        self._policy_status = "disconnected"
+        self._conditions_changed.set()
 
-    async def pause(self):
-        if self._state == "running":
-            await self._bridge.sim_control("pause")
-            self._paused.clear()
-            self._state = "paused"
+    def _start_policy_connect(self) -> None:
+        self._connect_task = asyncio.create_task(self._connect_policy_loop())
 
-    async def resume(self):
-        if self._state == "paused":
-            await self._bridge.sim_control("play")
-            self._paused.set()
-            self._state = "running"
+    async def _connect_policy_loop(self) -> None:
+        delay = 2.0
+        max_delay = 30.0
+        model_id = self._model_id
+        model_config = self._policy_config.models[model_id]
 
-    def step_once(self):
-        if self._state == "paused":
-            self._step_once.set()
+        self._adapter = EmbodimentAdapter(
+            self._policy_config.embodiment,
+            camera_mapping_override=model_config.camera_mapping,
+            action_type=model_config.action_type,
+        )
+        self._action_horizon = model_config.action_horizon
 
-    async def reset(self):
-        await self.stop()
-        await self._bridge.sim_control("reset")
-        self._logger.clear()
-        self._instruction = DEFAULT_INSTRUCTION
-
-    async def handle_sim_control(self, action: str, speed: float | None = None):
-        logger.info("handle_sim_control(%s), current state=%s", action, self._state)
-        if action == "play":
-            if self._state == "idle":
-                await self.start()
-            else:
-                await self.resume()
-        elif action == "pause":
-            await self.pause()
-        elif action == "stop":
-            await self.stop()
-        elif action == "step":
-            if self._state == "idle":
-                await self.start()
-                await self.pause()
-            await self._bridge.sim_control("step")
-            self.step_once()
-        elif action == "reset":
-            await self.reset()
-
-    async def _dispatch_actions(self, horizon, start_step) -> int:
-        dispatched = 0
-        for i, action in enumerate(horizon):
-            if i > 0 and not self._paused.is_set():
-                break
-            await self._bridge.send_action(action)
-            dispatched = i + 1
-            self._step = start_step + dispatched
-            await asyncio.sleep(ACTION_INTERVAL)
-        return dispatched
-
-    async def _run_loop(self):
-        obs_step = [0]
-        _log_continuous = None
-
-        try:
-            assert self._adapter is not None
-            assert self._policy is not None
-
-            self._logger.clear()
-
-            logger.info("Run loop: starting sim and waiting for camera data...")
-            await self._bridge.sim_control("play")
-            expected_cams = set(self._adapter.camera_names)
-            max_camera_wait = 200
-            wait_iters = 0
-            while True:
-                try:
-                    obs = await asyncio.wait_for(self._bridge.get_observation(), timeout=2.0)
-                except TimeoutError:
-                    obs = {}
-                if expected_cams and expected_cams <= set(obs.get("cameras", {})):
-                    break
-                if not expected_cams and obs.get("cameras"):
-                    break
-                wait_iters += 1
-                if wait_iters > max_camera_wait:
-                    logger.error(
-                        "No camera data after %d attempts, aborting run loop",
-                        max_camera_wait,
-                    )
-                    self._state = "error"
-                    return
-            logger.info("Run loop: got first observation at step %s", obs.get("step", "?"))
-
-            logger.info("Run loop: teleporting arm to home position...")
-            for _ in range(3):
-                await self._bridge.sim_control("reset")
+        while True:
+            self._policy_status = "connecting"
+            self._conditions_changed.set()
             try:
-                obs = await asyncio.wait_for(self._bridge.get_observation(), timeout=5.0)
-            except TimeoutError:
-                logger.error("No observation after teleport, aborting run loop")
-                self._state = "error"
+                policy = create_policy(self._policy_config.type, model_config.endpoint)
+                await policy.connect()
+                self._policy = policy
+                self._policy_status = "connected"
+                self._conditions_changed.set()
+                logger.info("Policy connected: %s", model_id)
                 return
-            logger.info(
-                "Run loop: arm reset complete, joints: %s",
-                [round(p, 4) for p in obs.get("joint_positions", [])[:7]],
-            )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.warning(
+                    "Policy connection failed for %s, retrying in %.0fs",
+                    model_id,
+                    delay,
+                )
+                self._policy_status = "error"
+                self._conditions_changed.set()
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, max_delay)
 
-            def _log_continuous(o):
-                step = obs_step[0]
-                obs_step[0] += 1
-                self._logger.log_observation(o, step)
+    async def start_loop(self) -> None:
+        if self._loop_task is not None:
+            return
+        self._loop_task = asyncio.create_task(self._inference_loop())
 
-            self._bridge.add_observation_listener(_log_continuous)
-            cycle = 0
+    async def stop_loop(self) -> None:
+        if self._loop_task is not None:
+            self._loop_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._loop_task
+            self._loop_task = None
 
+    async def shutdown(self) -> None:
+        await self.stop_loop()
+        await self._disconnect_policy()
+
+    async def _inference_loop(self) -> None:
+        cycle = 0
+        try:
             while True:
-                paused_future = asyncio.ensure_future(self._paused.wait())
-                step_future = asyncio.ensure_future(self._step_once.wait())
+                self._conditions_changed.clear()
+                if not self.inferring:
+                    await self._conditions_changed.wait()
+                    continue
+
+                assert self._adapter is not None
+                assert self._policy is not None
+
                 try:
-                    _, pending = await asyncio.wait(
-                        [paused_future, step_future],
-                        return_when=asyncio.FIRST_COMPLETED,
+                    obs = await asyncio.wait_for(
+                        self._bridge.get_observation(),
+                        timeout=self._observation_timeout,
                     )
-                    for f in pending:
-                        f.cancel()
-                finally:
-                    paused_future.cancel()
-                    step_future.cancel()
+                except TimeoutError:
+                    logger.warning("Observation timeout during inference")
+                    continue
 
-                stepping = self._step_once.is_set()
-                if stepping:
-                    self._step_once.clear()
+                if not self.inferring:
+                    continue
 
-                obs = await asyncio.wait_for(
-                    self._bridge.get_observation(),
-                    timeout=self._observation_timeout,
-                )
-                display_step = obs_step[0]
-                self._step = display_step
-
-                if self._instruction:
-                    self._logger.log_instruction(self._instruction, display_step)
-
-                logger.info(
-                    "Current joints: %s",
-                    [round(p, 4) for p in obs["joint_positions"][:7]],
-                )
-                openpi_obs = self._adapter.observation_to_openpi(obs, self._instruction)
                 cycle += 1
-                logger.info(
-                    "Inference cycle %d: starting at step %d, instruction=%r",
-                    cycle,
-                    self._step,
-                    self._instruction,
-                )
+                self._step = cycle
+                self._logger.log_instruction(self._instruction, cycle)
 
                 t0 = time.monotonic()
-                raw_action = await self._policy.infer(openpi_obs)
+                try:
+                    raw_action = await self._policy.infer(
+                        self._adapter.observation_to_openpi(obs, self._instruction)
+                    )
+                except Exception:
+                    logger.exception("Inference failed at cycle %d", cycle)
+                    self._policy_status = "error"
+                    self._conditions_changed.set()
+                    await self._disconnect_policy()
+                    if self._model_id and self._model_id in self._policy_config.models:
+                        self._start_policy_connect()
+                    continue
+
                 inference_ms = (time.monotonic() - t0) * 1000
-                logger.info(
-                    "Inference cycle %d: completed in %.1fms",
-                    cycle,
-                    inference_ms,
-                )
+                logger.info("Inference cycle %d: %.1fms", cycle, inference_ms)
 
                 if isinstance(raw_action, np.ndarray):
                     actions_tensor = raw_action
@@ -292,40 +233,23 @@ class Session:
                 else:
                     actions_tensor = raw_action
 
-                self._logger.log_raw_action_tensor(actions_tensor, display_step)
-                self._logger.log_inference_latency(inference_ms, display_step)
+                self._logger.log_raw_action_tensor(actions_tensor, cycle)
+                self._logger.log_inference_latency(inference_ms, cycle)
 
                 action_chunk = self._adapter.action_chunk_from_openpi(
                     actions_tensor, current_obs=obs
                 )
-                logger.info("Action chunk: %d actions", len(action_chunk))
-                if action_chunk:
-                    a = action_chunk[0]
-                    logger.info(
-                        "First action: joints=%s, gripper=%.4f",
-                        [round(p, 4) for p in a["joint_positions"]],
-                        a["gripper_position"],
-                    )
-
-                self._logger.log_action_trajectory(action_chunk, display_step)
+                self._logger.log_action_trajectory(action_chunk, cycle)
 
                 horizon = action_chunk[: self._action_horizon]
-                logger.info(
-                    "Inference cycle %d: dispatching %d actions at %.1fs intervals",
-                    cycle,
-                    len(horizon),
-                    ACTION_INTERVAL,
-                )
-                await self._dispatch_actions(horizon, display_step)
-
-                if stepping:
-                    self._paused.clear()
+                for action in horizon:
+                    if not self.inferring:
+                        break
+                    await self._bridge.send_action(action)
+                    self._step = cycle
+                    await asyncio.sleep(ACTION_INTERVAL)
 
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception("Run loop crashed")
-            self._state = "error"
-        finally:
-            if _log_continuous is not None:
-                self._bridge.remove_observation_listener(_log_continuous)
+            logger.exception("Inference loop crashed")

@@ -12,12 +12,12 @@ def test_websocket_connect_receives_status(mock_rr: MagicMock):
     with TestClient(app) as client, client.websocket_connect("/ws/sessions/test") as ws:
         data = ws.receive_json()
         assert data["type"] == "status"
-        assert "state" in data
-        assert "step" in data
-        assert "instruction" in data
-        assert "bridge_status" in data
+        assert "sim_status" in data
+        assert "sim_state" in data
+        assert "policy_status" in data
         assert "model_id" in data
-        assert data["bridge_status"] == "connected"
+        assert "instruction" in data
+        assert "step" in data
 
 
 @patch("robotics_playground.rerun_logger.rr")
@@ -35,6 +35,20 @@ def test_websocket_instruction_flow(mock_rr: MagicMock):
         assert ack["type"] == "instruction_ack"
         assert ack["status"] == "received"
         assert ack["text"] == "wave"
+
+
+@patch("robotics_playground.rerun_logger.rr")
+def test_websocket_clear_instruction(mock_rr: MagicMock):
+    with TestClient(app) as client, client.websocket_connect("/ws/sessions/test") as ws:
+        _ = ws.receive_json()
+        ws.send_json({"type": "instruction", "text": "wave"})
+        _ = ws.receive_json()  # instruction_ack
+
+        ws.send_json({"type": "clear_instruction"})
+        ack = ws.receive_json()
+        assert ack["type"] == "instruction_ack"
+        assert ack["status"] == "cleared"
+        assert ack["text"] == ""
 
 
 @patch("robotics_playground.rerun_logger.rr")
@@ -99,7 +113,6 @@ def test_websocket_select_model_silently_ignored_when_invalid(mock_rr: MagicMock
     with TestClient(app) as client, client.websocket_connect("/ws/sessions/test") as ws:
         _ = ws.receive_json()  # initial status
         ws.send_json({"type": "select_model", "model_id": "nonexistent"})
-        # Should just receive next status (no crash, no special message)
         data = ws.receive_json()
         assert data["type"] == "status"
 
@@ -140,7 +153,6 @@ def test_api_models_with_populated_config():
         models = data["models"]
         assert len(models) == 2
 
-        # Verify both models are present with correct IDs and names
         model_ids = {m["id"] for m in models}
         assert model_ids == {"dreamzero-v1", "pi05-v1"}
 

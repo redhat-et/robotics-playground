@@ -5,15 +5,18 @@ import {
   FlexItem,
   TextInput,
 } from '@patternfly/react-core';
+import { TimesIcon } from '@patternfly/react-icons';
 import type { ChatMessage } from '../hooks/useSession';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
   onSendInstruction: (text: string) => void;
+  onClearInstruction: () => void;
   connected: boolean;
+  hasActiveInstruction: boolean;
 }
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendInstruction, connected }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendInstruction, onClearInstruction, connected, hasActiveInstruction }) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -62,6 +65,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, onSendInstruction, conn
           <Button variant="primary" onClick={handleSend} isDisabled={!connected || !input.trim()}>
             Send
           </Button>
+        </FlexItem>
+        <FlexItem>
+          <Button
+            variant="plain"
+            aria-label="Clear instruction"
+            onClick={onClearInstruction}
+            isDisabled={!connected || !hasActiveInstruction}
+            icon={<TimesIcon />}
+          />
         </FlexItem>
       </Flex>
     </div>
