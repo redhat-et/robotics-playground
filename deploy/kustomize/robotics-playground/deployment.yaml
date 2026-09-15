@@ -22,7 +22,14 @@ spec:
         - name: zenoh-bridge
           image: eclipse/zenoh-bridge-ros2dds:1.9.0
           restartPolicy: Always
-          args: ["-c", "/etc/zenoh/config.json5"]
+          command: ["/bin/ash", "-c"]
+          args:
+            - |
+              while true; do
+                /zenoh-bridge-ros2dds -c /etc/zenoh/config.json5
+                echo "zenoh-bridge exited, retrying in 5s..."
+                sleep 5
+              done
           env:
             - name: ROS_LOCALHOST_ONLY
               value: "1"
