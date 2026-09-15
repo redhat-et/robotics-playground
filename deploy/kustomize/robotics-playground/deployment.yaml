@@ -18,6 +18,27 @@ spec:
         app.kubernetes.io/component: backend
         app.kubernetes.io/part-of: robotics-playground
     spec:
+      initContainers:
+        - name: zenoh-bridge
+          image: eclipse/zenoh-bridge-ros2dds:1.9.0
+          restartPolicy: Always
+          args: ["-c", "/etc/zenoh/config.json5"]
+          env:
+            - name: ROS_LOCALHOST_ONLY
+              value: "1"
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: zenoh-config
+              mountPath: /etc/zenoh
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
       containers:
         - name: api
           image: quay.io/redhat-et/robotics-playground:latest
@@ -53,25 +74,6 @@ spec:
               memory: 256Mi
             limits:
               memory: 2Gi
-        - name: zenoh-bridge
-          image: eclipse/zenoh-bridge-ros2dds:1.9.0
-          args: ["-c", "/etc/zenoh/config.json5"]
-          env:
-            - name: ROS_LOCALHOST_ONLY
-              value: "1"
-          securityContext:
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-          volumeMounts:
-            - name: zenoh-config
-              mountPath: /etc/zenoh
-              readOnly: true
-          resources:
-            requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
-              memory: 256Mi
       volumes:
         - name: config
           configMap:
