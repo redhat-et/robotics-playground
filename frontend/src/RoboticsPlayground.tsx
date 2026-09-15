@@ -74,6 +74,7 @@ const RoboticsPlayground: React.FC = () => {
                 selectedModel={selectedModel}
                 onSelectModel={handleSelectModel}
                 policyStatus={sessionState.policyStatus}
+                policyError={sessionState.policyError}
               />
               <VisualizationPanel />
             </DrawerContentBody>

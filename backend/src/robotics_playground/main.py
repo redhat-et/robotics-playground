@@ -211,6 +211,7 @@ async def websocket_session(websocket: WebSocket, session_id: str):
                             "sim_status": bridge.bridge_status,
                             "sim_state": sim_state.state,
                             "policy_status": session.policy_status,
+                            "policy_error": session.policy_error,
                             "model_id": session.model_id,
                             "instruction": session.instruction,
                             "step": session.step,

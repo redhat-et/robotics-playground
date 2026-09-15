@@ -23,16 +23,23 @@ interface PolicyBarProps {
   selectedModel: string;
   onSelectModel: (modelId: string) => void;
   policyStatus: string;
+  policyError: string;
 }
 
 const POLICY_LABELS: Record<string, { text: string; color: 'grey' | 'green' | 'orange' | 'red' }> = {
   disconnected: { text: 'Not connected', color: 'grey' },
-  connecting: { text: 'Connecting', color: 'orange' },
+  connecting: { text: 'Connecting…', color: 'orange' },
   connected: { text: 'Connected', color: 'green' },
-  error: { text: 'Error', color: 'red' },
 };
 
-const PolicyBar: React.FC<PolicyBarProps> = ({ isSidebarOpen, onToggleSidebar, selectedModel, onSelectModel, policyStatus }) => {
+const POLICY_ERROR_LABELS: Record<string, { text: string; color: 'grey' | 'green' | 'orange' | 'red' }> = {
+  server_not_found: { text: 'Server not found', color: 'red' },
+  server_starting: { text: 'Server starting…', color: 'orange' },
+  server_not_responding: { text: 'Server not responding', color: 'red' },
+  connection_failed: { text: 'Connection failed', color: 'red' },
+};
+
+const PolicyBar: React.FC<PolicyBarProps> = ({ isSidebarOpen, onToggleSidebar, selectedModel, onSelectModel, policyStatus, policyError }) => {
   const [models, setModels] = useState<Model[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +56,9 @@ const PolicyBar: React.FC<PolicyBarProps> = ({ isSidebarOpen, onToggleSidebar, s
       .finally(() => setLoading(false));
   }, []);
 
-  const policyLabel = POLICY_LABELS[policyStatus] ?? POLICY_LABELS.disconnected;
+  const policyLabel = policyStatus === 'error' && policyError
+    ? POLICY_ERROR_LABELS[policyError] ?? POLICY_ERROR_LABELS.connection_failed
+    : POLICY_LABELS[policyStatus] ?? POLICY_LABELS.disconnected;
 
   return (
     <Flex

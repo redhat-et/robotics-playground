@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import socket
 import time
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,17 @@ if TYPE_CHECKING:
 
 
 ACTION_INTERVAL = 0.5
+
+
+def _classify_connection_error(exc: BaseException) -> str:
+    cause = exc.__cause__ or exc
+    if isinstance(cause, socket.gaierror):
+        return "server_not_found"
+    if isinstance(cause, ConnectionRefusedError):
+        return "server_starting"
+    if isinstance(cause, (TimeoutError, OSError)):
+        return "server_not_responding"
+    return "connection_failed"
 
 
 class Session:
@@ -48,6 +60,7 @@ class Session:
         self._action_horizon: int = 4
 
         self._policy_status: str = "disconnected"
+        self._policy_error: str = ""
         self._connect_task: asyncio.Task | None = None
 
         self._sim_state: str = "idle"
@@ -60,6 +73,10 @@ class Session:
     @property
     def policy_status(self) -> str:
         return self._policy_status
+
+    @property
+    def policy_error(self) -> str:
+        return self._policy_error
 
     @property
     def model_id(self) -> str:
@@ -123,6 +140,7 @@ class Session:
             self._policy = None
         self._adapter = None
         self._policy_status = "disconnected"
+        self._policy_error = ""
         self._conditions_changed.set()
 
     def _start_policy_connect(self) -> None:
@@ -149,15 +167,18 @@ class Session:
                 await policy.connect()
                 self._policy = policy
                 self._policy_status = "connected"
+                self._policy_error = ""
                 self._conditions_changed.set()
                 logger.info("Policy connected: %s", model_id)
                 return
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as exc:
+                self._policy_error = _classify_connection_error(exc)
                 logger.warning(
-                    "Policy connection failed for %s, retrying in %.0fs",
+                    "Policy connection failed for %s (%s), retrying in %.0fs",
                     model_id,
+                    self._policy_error,
                     delay,
                 )
                 self._policy_status = "error"
@@ -214,8 +235,9 @@ class Session:
                     raw_action = await self._policy.infer(
                         self._adapter.observation_to_openpi(obs, self._instruction)
                     )
-                except Exception:
+                except Exception as exc:
                     logger.exception("Inference failed at cycle %d", cycle)
+                    self._policy_error = _classify_connection_error(exc)
                     self._policy_status = "error"
                     self._conditions_changed.set()
                     await self._disconnect_policy()
