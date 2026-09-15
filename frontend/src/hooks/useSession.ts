@@ -5,6 +5,7 @@ export interface SessionState {
   simStatus: string;
   simState: string;
   policyStatus: string;
+  policyError: string;
   modelId: string;
   instruction: string;
   step: number;
@@ -37,6 +38,7 @@ export function useSession(sessionId: string): UseSessionReturn {
     simStatus: 'disconnected',
     simState: 'idle',
     policyStatus: 'disconnected',
+    policyError: '',
     modelId: '',
     instruction: '',
     step: 0,
@@ -69,6 +71,7 @@ export function useSession(sessionId: string): UseSessionReturn {
               simStatus: msg.sim_status ?? 'disconnected',
               simState: msg.sim_state ?? 'idle',
               policyStatus: msg.policy_status ?? 'disconnected',
+              policyError: msg.policy_error ?? '',
               modelId: msg.model_id ?? '',
               instruction: msg.instruction ?? '',
               step: msg.step ?? 0,

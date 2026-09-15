@@ -16,6 +16,7 @@ const defaultProps = {
   selectedModel: '',
   onSelectModel: vi.fn(),
   policyStatus: 'disconnected',
+  policyError: '',
 };
 
 describe('PolicyBar', () => {
@@ -177,19 +178,31 @@ describe('PolicyBar', () => {
     render(<PolicyBar {...defaultProps} policyStatus="connecting" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Connecting')).toBeInTheDocument();
+      expect(screen.getByText('Connecting…')).toBeInTheDocument();
     });
   });
 
-  it('shows Error label on error status', async () => {
+  it('shows error-specific label on error status', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({
       json: () => Promise.resolve(MOCK_MODELS),
     } as Response);
 
-    render(<PolicyBar {...defaultProps} policyStatus="error" />);
+    render(<PolicyBar {...defaultProps} policyStatus="error" policyError="server_not_found" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Error')).toBeInTheDocument();
+      expect(screen.getByText('Server not found')).toBeInTheDocument();
+    });
+  });
+
+  it('shows Connection failed for unknown error', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({
+      json: () => Promise.resolve(MOCK_MODELS),
+    } as Response);
+
+    render(<PolicyBar {...defaultProps} policyStatus="error" policyError="something_unknown" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Connection failed')).toBeInTheDocument();
     });
   });
 });

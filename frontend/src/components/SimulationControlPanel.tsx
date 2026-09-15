@@ -15,10 +15,10 @@ interface SimulationControlPanelProps {
 }
 
 const SIM_STATUS_LABELS: Record<string, { text: string; color: 'grey' | 'green' | 'orange' | 'red' }> = {
-  disconnected: { text: 'Disconnected', color: 'red' },
-  connecting: { text: 'Connecting', color: 'orange' },
+  disconnected: { text: 'Connecting…', color: 'orange' },
+  connecting: { text: 'Connecting…', color: 'orange' },
   connected: { text: 'Connected', color: 'green' },
-  mock: { text: 'Mock', color: 'grey' },
+  mock: { text: 'Mock mode', color: 'grey' },
 };
 
 const SimulationControlPanel: React.FC<SimulationControlPanelProps> = ({
@@ -38,7 +38,7 @@ const SimulationControlPanel: React.FC<SimulationControlPanelProps> = ({
           <Content component="h2" style={{ margin: 0 }}>Simulation Control</Content>
         </FlexItem>
         <FlexItem>
-          <Label color={statusLabel.color}>Sim: {statusLabel.text}</Label>
+          <Label color={statusLabel.color}>{statusLabel.text}</Label>
         </FlexItem>
       </Flex>
       <Flex alignItems={{ default: 'alignItemsCenter' }}>

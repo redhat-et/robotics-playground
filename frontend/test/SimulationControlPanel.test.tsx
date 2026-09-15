@@ -77,19 +77,19 @@ describe('SimulationControlPanel', () => {
     expect(screen.getByRole('button', { name: 'Step' })).toBeDisabled();
   });
 
-  it('shows sim status badge', () => {
+  it('shows Connected status badge', () => {
     render(<SimulationControlPanel simState="idle" simStatus="connected" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Sim: Connected')).toBeInTheDocument();
+    expect(screen.getByText('Connected')).toBeInTheDocument();
   });
 
-  it('shows Mock status badge', () => {
+  it('shows Mock mode status badge', () => {
     render(<SimulationControlPanel simState="idle" simStatus="mock" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Sim: Mock')).toBeInTheDocument();
+    expect(screen.getByText('Mock mode')).toBeInTheDocument();
   });
 
-  it('shows Disconnected status badge', () => {
+  it('shows Connecting status badge when disconnected', () => {
     render(<SimulationControlPanel simState="idle" simStatus="disconnected" onSimControl={vi.fn()} />);
-    expect(screen.getByText('Sim: Disconnected')).toBeInTheDocument();
+    expect(screen.getByText('Connecting…')).toBeInTheDocument();
   });
 
   it('renders speed slider', () => {

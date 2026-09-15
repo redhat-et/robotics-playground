@@ -15,6 +15,7 @@ def test_websocket_connect_receives_status(mock_rr: MagicMock):
         assert "sim_status" in data
         assert "sim_state" in data
         assert "policy_status" in data
+        assert "policy_error" in data
         assert "model_id" in data
         assert "instruction" in data
         assert "step" in data
