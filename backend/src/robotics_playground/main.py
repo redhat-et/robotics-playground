@@ -54,7 +54,8 @@ async def _observation_streamer(
     def _log_obs(obs):
         step = obs_step[0]
         obs_step[0] += 1
-        rerun_logger.log_observation(obs, step)
+        wallclock_time = time.monotonic()
+        rerun_logger.log_observation(obs, step, wallclock_time=wallclock_time)
 
     try:
         while not stop_event.is_set():

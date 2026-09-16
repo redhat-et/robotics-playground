@@ -229,9 +229,12 @@ class Session:
                 cycle += 1
                 self._step = cycle
                 obs_step = obs["step"]
-                self._logger.log_instruction(self._instruction, obs_step)
 
-                t0 = time.monotonic()
+                inference_request_time = time.monotonic()
+                self._logger.log_instruction(
+                    self._instruction, obs_step, wallclock_time=inference_request_time
+                )
+
                 try:
                     raw_action = await self._policy.infer(
                         self._adapter.observation_to_openpi(obs, self._instruction)
@@ -246,7 +249,8 @@ class Session:
                         self._start_policy_connect()
                     continue
 
-                inference_ms = (time.monotonic() - t0) * 1000
+                inference_response_time = time.monotonic()
+                inference_ms = (inference_response_time - inference_request_time) * 1000
                 logger.info("Inference cycle %d: %.1fms", cycle, inference_ms)
 
                 if isinstance(raw_action, np.ndarray):
@@ -256,13 +260,19 @@ class Session:
                 else:
                     actions_tensor = raw_action
 
-                self._logger.log_raw_action_tensor(actions_tensor, obs_step)
-                self._logger.log_inference_latency(inference_ms, obs_step)
+                self._logger.log_raw_action_tensor(
+                    actions_tensor, obs_step, wallclock_time=inference_response_time
+                )
+                self._logger.log_inference_latency(
+                    inference_ms, obs_step, wallclock_time=inference_response_time
+                )
 
                 action_chunk = self._adapter.action_chunk_from_openpi(
                     actions_tensor, current_obs=obs
                 )
-                self._logger.log_action_trajectory(action_chunk, obs_step)
+                self._logger.log_action_trajectory(
+                    action_chunk, obs_step, wallclock_time=inference_response_time
+                )
 
                 horizon = action_chunk[: self._action_horizon]
                 for action in horizon:

@@ -61,7 +61,6 @@ class RerunLogger:
         self._step_offset = 0
         self._last_step = 0
         self._start_time: float | None = None
-        self._observation_dt = 0.033  # Assume 30Hz observation rate
 
         self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._worker_thread: threading.Thread | None = None
@@ -234,10 +233,18 @@ class RerunLogger:
 
         self._submit(_do_clear)
 
-    def log_observation(self, obs: Observation, step: int, *, cameras: bool = True):
+    def log_observation(
+        self, obs: Observation, step: int, *, cameras: bool = True, wallclock_time: float | None = None
+    ):
         effective_step = self._step_offset + step
         self._last_step = step
-        time_seconds = effective_step * self._observation_dt
+
+        if wallclock_time is not None:
+            if self._start_time is None:
+                self._start_time = wallclock_time
+            time_seconds = wallclock_time - self._start_time
+        else:
+            time_seconds = 0.0
 
         cameras_data = {k: _encode_jpeg(v) for k, v in obs["cameras"].items()} if cameras else {}
         joints = list(obs["joint_positions"])
@@ -261,9 +268,14 @@ class RerunLogger:
 
         self._submit(_do_log)
 
-    def log_action(self, action: Action, step: int):
+    def log_action(self, action: Action, step: int, *, wallclock_time: float | None = None):
         effective_step = self._step_offset + step
-        time_seconds = effective_step * self._observation_dt
+
+        if wallclock_time is not None and self._start_time is not None:
+            time_seconds = wallclock_time - self._start_time
+        else:
+            time_seconds = 0.0
+
         positions = list(action["joint_positions"])
         prefix = self._prefix
 
@@ -275,9 +287,13 @@ class RerunLogger:
 
         self._submit(_do_log)
 
-    def log_instruction(self, text: str, step: int):
+    def log_instruction(self, text: str, step: int, *, wallclock_time: float | None = None):
         effective_step = self._step_offset + step
-        time_seconds = effective_step * self._observation_dt
+
+        if wallclock_time is not None and self._start_time is not None:
+            time_seconds = wallclock_time - self._start_time
+        else:
+            time_seconds = 0.0
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
@@ -286,9 +302,16 @@ class RerunLogger:
 
         self._submit(_do_log)
 
-    def log_raw_action_tensor(self, actions: np.ndarray, step: int):
+    def log_raw_action_tensor(
+        self, actions: np.ndarray, step: int, *, wallclock_time: float | None = None
+    ):
         effective_step = self._step_offset + step
-        time_seconds = effective_step * self._observation_dt
+
+        if wallclock_time is not None and self._start_time is not None:
+            time_seconds = wallclock_time - self._start_time
+        else:
+            time_seconds = 0.0
+
         first_row = actions[0].copy()
         n_dims = actions.shape[1]
         prefix = self._prefix
@@ -306,9 +329,16 @@ class RerunLogger:
 
         self._submit(_do_log)
 
-    def log_inference_latency(self, latency_ms: float, step: int):
+    def log_inference_latency(
+        self, latency_ms: float, step: int, *, wallclock_time: float | None = None
+    ):
         effective_step = self._step_offset + step
-        time_seconds = effective_step * self._observation_dt
+
+        if wallclock_time is not None and self._start_time is not None:
+            time_seconds = wallclock_time - self._start_time
+        else:
+            time_seconds = 0.0
+
         prefix = self._prefix
 
         def _do_log():
@@ -318,9 +348,16 @@ class RerunLogger:
 
         self._submit(_do_log)
 
-    def log_action_trajectory(self, action_chunk: list[Action], step: int):
+    def log_action_trajectory(
+        self, action_chunk: list[Action], step: int, *, wallclock_time: float | None = None
+    ):
         effective_step = self._step_offset + step
-        time_seconds = effective_step * self._observation_dt
+
+        if wallclock_time is not None and self._start_time is not None:
+            time_seconds = wallclock_time - self._start_time
+        else:
+            time_seconds = 0.0
+
         if not action_chunk:
             return
         first = action_chunk[0]
