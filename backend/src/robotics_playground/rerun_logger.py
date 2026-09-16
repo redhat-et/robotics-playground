@@ -60,6 +60,8 @@ class RerunLogger:
         self._initialized = False
         self._step_offset = 0
         self._last_step = 0
+        self._start_time: float | None = None
+        self._observation_dt = 0.033  # Assume 30Hz observation rate
 
         self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._worker_thread: threading.Thread | None = None
@@ -188,7 +190,7 @@ class RerunLogger:
                 rr.serve_grpc(
                     grpc_port=port,
                     default_blueprint=blueprint,
-                    server_memory_limit="64MiB",
+                    server_memory_limit="1GiB",
                     cors_allow_origin=cors,
                 )
                 if recording_dir:
@@ -235,6 +237,7 @@ class RerunLogger:
     def log_observation(self, obs: Observation, step: int, *, cameras: bool = True):
         effective_step = self._step_offset + step
         self._last_step = step
+        time_seconds = effective_step * self._observation_dt
 
         cameras_data = {k: _encode_jpeg(v) for k, v in obs["cameras"].items()} if cameras else {}
         joints = list(obs["joint_positions"])
@@ -242,6 +245,7 @@ class RerunLogger:
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
+            rr.set_time("time", seconds=time_seconds)
             for name, jpeg_bytes in cameras_data.items():
                 rr.log(
                     f"{prefix}/camera/{name}",
@@ -259,11 +263,13 @@ class RerunLogger:
 
     def log_action(self, action: Action, step: int):
         effective_step = self._step_offset + step
+        time_seconds = effective_step * self._observation_dt
         positions = list(action["joint_positions"])
         prefix = self._prefix
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
+            rr.set_time("time", seconds=time_seconds)
             for i, val in enumerate(positions):
                 rr.log(f"{prefix}/actions/dim_{i}", rr.Scalars(float(val)))
 
@@ -271,21 +277,25 @@ class RerunLogger:
 
     def log_instruction(self, text: str, step: int):
         effective_step = self._step_offset + step
+        time_seconds = effective_step * self._observation_dt
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
+            rr.set_time("time", seconds=time_seconds)
             rr.log("session/instructions", rr.TextLog(text))
 
         self._submit(_do_log)
 
     def log_raw_action_tensor(self, actions: np.ndarray, step: int):
         effective_step = self._step_offset + step
+        time_seconds = effective_step * self._observation_dt
         first_row = actions[0].copy()
         n_dims = actions.shape[1]
         prefix = self._prefix
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
+            rr.set_time("time", seconds=time_seconds)
             for dim in range(n_dims):
                 label = PANDA_JOINT_LABELS[dim] if dim < len(PANDA_JOINT_LABELS) else f"dim_{dim}"
                 rr.log(
@@ -298,16 +308,19 @@ class RerunLogger:
 
     def log_inference_latency(self, latency_ms: float, step: int):
         effective_step = self._step_offset + step
+        time_seconds = effective_step * self._observation_dt
         prefix = self._prefix
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
+            rr.set_time("time", seconds=time_seconds)
             rr.log(f"{prefix}/policy/inference_ms", rr.Scalars(latency_ms))
 
         self._submit(_do_log)
 
     def log_action_trajectory(self, action_chunk: list[Action], step: int):
         effective_step = self._step_offset + step
+        time_seconds = effective_step * self._observation_dt
         if not action_chunk:
             return
         first = action_chunk[0]
@@ -317,6 +330,7 @@ class RerunLogger:
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
+            rr.set_time("time", seconds=time_seconds)
             for j, pos in enumerate(positions):
                 label = PANDA_JOINT_LABELS[j] if j < len(PANDA_JOINT_LABELS) else f"joint_{j}"
                 rr.log(
