@@ -134,6 +134,16 @@ def test_clear_advances_step_offset(mock_rr):
     assert logger._last_step == 0
 
 
+def test_clear_resets_start_time(mock_rr):
+    from robotics_playground.rerun_logger import RerunLogger
+
+    logger = RerunLogger()
+    logger._initialized = True
+    logger._start_time = 100.0
+    logger.clear()
+    assert logger._start_time is None
+
+
 def test_log_after_clear_uses_offset(mock_rr):
     from robotics_playground.rerun_logger import RerunLogger
 
@@ -152,12 +162,12 @@ def test_log_after_clear_uses_offset(mock_rr):
         "joint_positions": [0.1],
         "joint_velocities": [0.0],
     }
-    logger._start_time = 20.0  # Set baseline after clear
+    # After clear, _start_time is None, so first observation sets new baseline
     logger.log_observation(obs, step=0, wallclock_time=25.0)
     logger.flush()
 
     mock_rr.set_time.assert_any_call("step", sequence=7)
-    mock_rr.set_time.assert_any_call("time", duration=5.0)  # 25.0 - 20.0
+    mock_rr.set_time.assert_any_call("time", duration=0.0)  # First log after clear resets to 0
     logger.shutdown()
 
 
