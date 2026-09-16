@@ -227,47 +227,59 @@ def test_velocity_without_obs_raises():
         adapter.action_chunk_from_openpi(action_row.reshape(1, 8))
 
 
-def test_cartesian_delta_passthrough():
+def test_cartesian_delta_7dim_passthrough():
+    """7-dim Cartesian actions [pos(3), rot(3), gripper(1)] pass through as-is."""
     adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="cartesian_delta")
-    raw = np.array([0.01, -0.02, 0.03, 0.1, -0.1, 0.05, 0.04, 99.0], dtype=np.float32)
-    actions = adapter.action_chunk_from_openpi(raw.reshape(1, 8))
+    raw = np.array([0.01, -0.02, 0.03, 0.1, -0.1, 0.05, 0.04], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(raw.reshape(1, 7))
     a = actions[0]
-    assert len(a["joint_positions"]) == 8
+    assert len(a["joint_positions"]) == 7
     assert abs(a["joint_positions"][0] - 0.01) < 1e-5
     assert abs(a["joint_positions"][6] - 0.04) < 1e-5
-    assert abs(a["gripper_position"] - 99.0) < 1e-5
+    assert abs(a["gripper_position"] - 0.04) < 1e-5  # Last element is gripper
 
 
-def test_cartesian_delta_no_reorder():
-    config = EmbodimentConfig(
-        joint_names=["a", "b", "c"],
-        training_order=["c", "a", "b"],
-        joint_limits={"a": [-1, 1], "b": [-1, 1], "c": [-1, 1]},
-        gripper_joint="g",
-        gripper_limits=[0, 1],
-        camera_mapping={},
-    )
-    adapter = EmbodimentAdapter(config, action_type="cartesian_delta")
-    raw = np.array([0.1, 0.2, 0.3, 0.5], dtype=np.float32)
-    actions = adapter.action_chunk_from_openpi(raw.reshape(1, 4))
-    # Should NOT reorder — values pass through as-is
+def test_cartesian_delta_8dim_velocity_integration():
+    """8-dim actions [joint_vel(7), gripper(1)] are integrated into positions."""
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="cartesian_delta")
+    obs = _make_obs(positions=[0.0, 0.0, 0.0, -1.0, 0.0, 1.0, 0.0])
+    # Velocity deltas: move j1 by +0.1, j4 by -0.5
+    raw = np.array([0.1, 0.0, 0.0, -0.5, 0.0, 0.0, 0.0, 0.02], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(raw.reshape(1, 8), current_obs=obs)
+    a = actions[0]
+    assert len(a["joint_positions"]) == 7
+    assert abs(a["joint_positions"][0] - 0.1) < 1e-5  # 0.0 + 0.1
+    assert abs(a["joint_positions"][3] - (-1.5)) < 1e-5  # -1.0 + (-0.5)
+    assert abs(a["gripper_position"] - 0.02) < 1e-5
+
+
+def test_cartesian_delta_8dim_clamping():
+    """8-dim velocity mode clamps integrated positions to joint limits."""
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="cartesian_delta")
+    obs = _make_obs(positions=[1.9, 0.0, 0.0, -0.1, 0.0, 0.0, 0.0])
+    # Try to move j1 from 1.9 to 2.5 (exceeds limit of 2.0 with 0.05 safety margin = 1.95)
+    raw = np.array([0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02], dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(raw.reshape(1, 8), current_obs=obs)
+    assert abs(actions[0]["joint_positions"][0] - 1.95) < 1e-5  # Clamped to limit with margin
+
+
+def test_cartesian_delta_8dim_accumulation():
+    """8-dim velocity mode accumulates deltas across action horizon."""
+    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="cartesian_delta")
+    obs = _make_obs(positions=[0.0] * 7)
+    # Three steps, each moving j1 by +0.1
+    raw = np.array([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]] * 3, dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(raw, current_obs=obs)
     assert abs(actions[0]["joint_positions"][0] - 0.1) < 1e-5
-    assert abs(actions[0]["joint_positions"][1] - 0.2) < 1e-5
-    assert abs(actions[0]["joint_positions"][2] - 0.3) < 1e-5
+    assert abs(actions[1]["joint_positions"][0] - 0.2) < 1e-5  # Accumulated
+    assert abs(actions[2]["joint_positions"][0] - 0.3) < 1e-5  # Accumulated
 
 
-def test_cartesian_delta_no_clamping():
+def test_cartesian_delta_7dim_no_accumulation():
+    """7-dim Cartesian mode does NOT accumulate — each action is independent."""
     adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="cartesian_delta")
-    raw = np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 0.5], dtype=np.float32)
-    actions = adapter.action_chunk_from_openpi(raw.reshape(1, 8))
-    # Values exceed joint limits but should NOT be clamped
-    assert abs(actions[0]["joint_positions"][0] - 5.0) < 1e-5
-
-
-def test_cartesian_delta_no_accumulation():
-    adapter = EmbodimentAdapter(FRANKA_CONFIG, action_type="cartesian_delta")
-    raw = np.array([0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
-    actions = adapter.action_chunk_from_openpi(np.tile(raw, (3, 1)))
+    raw = np.array([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]] * 3, dtype=np.float32)
+    actions = adapter.action_chunk_from_openpi(raw)
     # Each action should be identical — no accumulation
     for a in actions:
         assert abs(a["joint_positions"][0] - 0.1) < 1e-5

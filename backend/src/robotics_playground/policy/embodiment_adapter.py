@@ -92,16 +92,40 @@ class EmbodimentAdapter:
             row = actions_array[i]
 
             if self._action_type == "cartesian_delta":
-                action_dim = min(row.shape[0], n_joints + 1)
-                raw = row[:action_dim].astype(np.float64)
-                gripper_val = float(raw[-1]) if action_dim > n_joints else 0.0
-                result.append(
-                    Action(
-                        joint_positions=raw.tolist(),
-                        joint_velocities=[math.nan] * action_dim,
-                        gripper_position=gripper_val,
+                # Detect action format:
+                # - 8-dim: joint velocity deltas (7) + gripper (1) → integrate into positions
+                # - 7-dim: Cartesian deltas [pos(3), rot(3), gripper(1)] → pass through
+                if row.shape[0] == n_joints + 1:  # 8-dim: joint velocities + gripper
+                    if current_obs is None:
+                        raise ValueError("8-dim action format requires current_obs for integration")
+                    if base_pos is None:
+                        base_pos = np.array(current_obs["joint_positions"][:n_joints], dtype=np.float64)
+                    delta_training = row[:n_joints].astype(np.float64)
+                    delta_urdf = delta_training[self._act_reorder]
+                    base_pos = base_pos + delta_urdf
+                    pos_urdf = base_pos.copy()
+                    if self._lower is not None:
+                        pos_urdf = np.clip(pos_urdf, self._lower, self._upper)
+                    gripper_physical = float(row[n_joints])
+                    g_lo, g_hi = self._config.gripper_limits
+                    gripper_physical = max(g_lo, min(g_hi, gripper_physical))
+                    result.append(
+                        Action(
+                            joint_positions=pos_urdf.tolist(),
+                            joint_velocities=[math.nan] * n_joints,
+                            gripper_position=gripper_physical,
+                        )
                     )
-                )
+                elif row.shape[0] == n_joints:  # 7-dim: Cartesian deltas [pos(3), rot(3), gripper(1)]
+                    result.append(
+                        Action(
+                            joint_positions=row.tolist(),
+                            joint_velocities=[math.nan] * n_joints,
+                            gripper_position=float(row[-1]),
+                        )
+                    )
+                else:
+                    raise ValueError(f"Unexpected action dimension: {row.shape[0]}, expected {n_joints} or {n_joints + 1}")
                 continue
 
             if base_pos is not None:
