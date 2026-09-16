@@ -135,9 +135,9 @@ class RerunLogger:
             )
             for name in self._camera_names
         ]
-        step_range = rrb.VisibleTimeRanges(
-            timeline="step",
-            start=rrb.TimeRangeBoundary.absolute(seq=0),
+        time_range = rrb.VisibleTimeRanges(
+            timeline="time",
+            start=rrb.TimeRangeBoundary.absolute(seconds=0.0),
             end=rrb.TimeRangeBoundary.infinite(),
         )
         return rrb.Blueprint(
@@ -148,14 +148,14 @@ class RerunLogger:
                         origin=f"{self._prefix}/joints",
                         name="Joint States",
                         plot_legend=rrb.PlotLegend(visible=False),
-                        time_ranges=step_range,
+                        time_ranges=time_range,
                     ),
                     rrb.TimeSeriesView(
                         origin=f"{self._prefix}/policy",
                         name="Policy Output",
                         plot_legend=rrb.PlotLegend(visible=False),
                         axis_y=rrb.ScalarAxis(range=(-3.2, 3.8), zoom_lock=True),
-                        time_ranges=step_range,
+                        time_ranges=time_range,
                     ),
                 ),
                 row_shares=[7, 2],
@@ -223,6 +223,7 @@ class RerunLogger:
         clear_step = self._step_offset + self._last_step + 1
         self._step_offset = clear_step + 1
         self._last_step = 0
+        self._start_time = None
 
         prefix = self._prefix
 
