@@ -257,7 +257,7 @@ class RerunLogger:
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
-            rr.set_time("time", seconds=time_seconds)
+            rr.set_time("time", duration=time_seconds)
             for name, jpeg_bytes in cameras_data.items():
                 rr.log(
                     f"{prefix}/camera/{name}",
@@ -286,7 +286,7 @@ class RerunLogger:
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
-            rr.set_time("time", seconds=time_seconds)
+            rr.set_time("time", duration=time_seconds)
             for i, val in enumerate(positions):
                 rr.log(f"{prefix}/actions/dim_{i}", rr.Scalars(float(val)))
 
@@ -302,7 +302,7 @@ class RerunLogger:
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
-            rr.set_time("time", seconds=time_seconds)
+            rr.set_time("time", duration=time_seconds)
             rr.log("session/instructions", rr.TextLog(text))
 
         self._submit(_do_log)
@@ -323,7 +323,7 @@ class RerunLogger:
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
-            rr.set_time("time", seconds=time_seconds)
+            rr.set_time("time", duration=time_seconds)
             for dim in range(n_dims):
                 label = PANDA_JOINT_LABELS[dim] if dim < len(PANDA_JOINT_LABELS) else f"dim_{dim}"
                 rr.log(
@@ -348,7 +348,7 @@ class RerunLogger:
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
-            rr.set_time("time", seconds=time_seconds)
+            rr.set_time("time", duration=time_seconds)
             rr.log(f"{prefix}/policy/inference_ms", rr.Scalars(latency_ms))
 
         self._submit(_do_log)
@@ -372,7 +372,7 @@ class RerunLogger:
 
         def _do_log():
             rr.set_time("step", sequence=effective_step)
-            rr.set_time("time", seconds=time_seconds)
+            rr.set_time("time", duration=time_seconds)
             for j, pos in enumerate(positions):
                 label = PANDA_JOINT_LABELS[j] if j < len(PANDA_JOINT_LABELS) else f"joint_{j}"
                 rr.log(

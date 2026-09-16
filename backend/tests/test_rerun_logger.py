@@ -35,7 +35,7 @@ def test_log_observation_logs_all_cameras(mock_rr):
     logger.flush()
 
     mock_rr.set_time.assert_any_call("step", sequence=5)
-    mock_rr.set_time.assert_any_call("time", seconds=0.0)  # First log sets start_time
+    mock_rr.set_time.assert_any_call("time", duration=0.0)  # First log sets start_time
 
     logged_paths = [call.args[0] for call in mock_rr.log.call_args_list]
     assert "session/policy_0/camera/wrist" in logged_paths
@@ -80,7 +80,7 @@ def test_log_action_logs_dimensions(mock_rr):
     logger.flush()
 
     mock_rr.set_time.assert_any_call("step", sequence=1)
-    mock_rr.set_time.assert_any_call("time", seconds=1.5)  # 11.5 - 10.0
+    mock_rr.set_time.assert_any_call("time", duration=1.5)  # 11.5 - 10.0
     logged_paths = [call.args[0] for call in mock_rr.log.call_args_list]
     assert "session/policy_0/actions/dim_0" in logged_paths
     logger.shutdown()
@@ -99,7 +99,7 @@ def test_log_instruction(mock_rr):
     logger.flush()
 
     mock_rr.set_time.assert_any_call("step", sequence=3)
-    mock_rr.set_time.assert_any_call("time", seconds=2.0)  # 12.0 - 10.0
+    mock_rr.set_time.assert_any_call("time", duration=2.0)  # 12.0 - 10.0
     mock_rr.log.assert_called()
     logger.shutdown()
 
@@ -157,7 +157,7 @@ def test_log_after_clear_uses_offset(mock_rr):
     logger.flush()
 
     mock_rr.set_time.assert_any_call("step", sequence=7)
-    mock_rr.set_time.assert_any_call("time", seconds=5.0)  # 25.0 - 20.0
+    mock_rr.set_time.assert_any_call("time", duration=5.0)  # 25.0 - 20.0
     logger.shutdown()
 
 
