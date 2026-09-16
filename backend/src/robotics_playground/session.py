@@ -228,7 +228,8 @@ class Session:
 
                 cycle += 1
                 self._step = cycle
-                self._logger.log_instruction(self._instruction, cycle)
+                obs_step = obs["step"]
+                self._logger.log_instruction(self._instruction, obs_step)
 
                 t0 = time.monotonic()
                 try:
@@ -255,13 +256,13 @@ class Session:
                 else:
                     actions_tensor = raw_action
 
-                self._logger.log_raw_action_tensor(actions_tensor, cycle)
-                self._logger.log_inference_latency(inference_ms, cycle)
+                self._logger.log_raw_action_tensor(actions_tensor, obs_step)
+                self._logger.log_inference_latency(inference_ms, obs_step)
 
                 action_chunk = self._adapter.action_chunk_from_openpi(
                     actions_tensor, current_obs=obs
                 )
-                self._logger.log_action_trajectory(action_chunk, cycle)
+                self._logger.log_action_trajectory(action_chunk, obs_step)
 
                 horizon = action_chunk[: self._action_horizon]
                 for action in horizon:
