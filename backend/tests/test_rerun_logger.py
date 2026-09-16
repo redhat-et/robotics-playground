@@ -31,11 +31,11 @@ def test_log_observation_logs_all_cameras(mock_rr):
         "joint_positions": [0.1, 0.2, 0.3],
         "joint_velocities": [0.0, 0.0, 0.0],
     }
-    logger.log_observation(obs, step=5)
+    logger.log_observation(obs, step=5, wallclock_time=100.0)
     logger.flush()
 
     mock_rr.set_time.assert_any_call("step", sequence=5)
-    mock_rr.set_time.assert_any_call("time", seconds=5 * 0.033)
+    mock_rr.set_time.assert_any_call("time", seconds=0.0)  # First log sets start_time
 
     logged_paths = [call.args[0] for call in mock_rr.log.call_args_list]
     assert "session/policy_0/camera/wrist" in logged_paths
@@ -72,14 +72,15 @@ def test_log_action_logs_dimensions(mock_rr):
     logger = RerunLogger()
     logger.start()
     logger.flush()
+    logger._start_time = 10.0  # Set baseline
     mock_rr.reset_mock()
 
     action = {"joint_positions": [0.1, 0.2, 0.3]}
-    logger.log_action(action, step=1)
+    logger.log_action(action, step=1, wallclock_time=11.5)
     logger.flush()
 
     mock_rr.set_time.assert_any_call("step", sequence=1)
-    mock_rr.set_time.assert_any_call("time", seconds=1 * 0.033)
+    mock_rr.set_time.assert_any_call("time", seconds=1.5)  # 11.5 - 10.0
     logged_paths = [call.args[0] for call in mock_rr.log.call_args_list]
     assert "session/policy_0/actions/dim_0" in logged_paths
     logger.shutdown()
@@ -91,13 +92,14 @@ def test_log_instruction(mock_rr):
     logger = RerunLogger()
     logger.start()
     logger.flush()
+    logger._start_time = 10.0  # Set baseline
     mock_rr.reset_mock()
 
-    logger.log_instruction("pick up block", step=3)
+    logger.log_instruction("pick up block", step=3, wallclock_time=12.0)
     logger.flush()
 
     mock_rr.set_time.assert_any_call("step", sequence=3)
-    mock_rr.set_time.assert_any_call("time", seconds=3 * 0.033)
+    mock_rr.set_time.assert_any_call("time", seconds=2.0)  # 12.0 - 10.0
     mock_rr.log.assert_called()
     logger.shutdown()
 
@@ -150,11 +152,12 @@ def test_log_after_clear_uses_offset(mock_rr):
         "joint_positions": [0.1],
         "joint_velocities": [0.0],
     }
-    logger.log_observation(obs, step=0)
+    logger._start_time = 20.0  # Set baseline after clear
+    logger.log_observation(obs, step=0, wallclock_time=25.0)
     logger.flush()
 
     mock_rr.set_time.assert_any_call("step", sequence=7)
-    mock_rr.set_time.assert_any_call("time", seconds=7 * 0.033)
+    mock_rr.set_time.assert_any_call("time", seconds=5.0)  # 25.0 - 20.0
     logger.shutdown()
 
 
