@@ -234,7 +234,12 @@ class RerunLogger:
         self._submit(_do_clear)
 
     def log_observation(
-        self, obs: Observation, step: int, *, cameras: bool = True, wallclock_time: float | None = None
+        self,
+        obs: Observation,
+        step: int,
+        *,
+        cameras: bool = True,
+        wallclock_time: float | None = None,
     ):
         effective_step = self._step_offset + step
         self._last_step = step
