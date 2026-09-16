@@ -99,7 +99,9 @@ class EmbodimentAdapter:
                     if current_obs is None:
                         raise ValueError("8-dim action format requires current_obs for integration")
                     if base_pos is None:
-                        base_pos = np.array(current_obs["joint_positions"][:n_joints], dtype=np.float64)
+                        base_pos = np.array(
+                            current_obs["joint_positions"][:n_joints], dtype=np.float64
+                        )
                     delta_training = row[:n_joints].astype(np.float64)
                     delta_urdf = delta_training[self._act_reorder]
                     base_pos = base_pos + delta_urdf
@@ -116,7 +118,8 @@ class EmbodimentAdapter:
                             gripper_position=gripper_physical,
                         )
                     )
-                elif row.shape[0] == n_joints:  # 7-dim: Cartesian deltas [pos(3), rot(3), gripper(1)]
+                elif row.shape[0] == n_joints:
+                    # 7-dim: Cartesian deltas [pos(3), rot(3), gripper(1)]
                     result.append(
                         Action(
                             joint_positions=row.tolist(),
@@ -125,7 +128,10 @@ class EmbodimentAdapter:
                         )
                     )
                 else:
-                    raise ValueError(f"Unexpected action dimension: {row.shape[0]}, expected {n_joints} or {n_joints + 1}")
+                    raise ValueError(
+                        f"Unexpected action dimension: {row.shape[0]}, "
+                        f"expected {n_joints} or {n_joints + 1}"
+                    )
                 continue
 
             if base_pos is not None:
