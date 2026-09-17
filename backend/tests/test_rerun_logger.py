@@ -116,21 +116,24 @@ def test_clear_logs_clear_markers(mock_rr):
     logger.clear()
     logger.flush()
 
-    mock_rr.set_time.assert_called_with("step", sequence=11)
+    # Clear resets to step 0 and time 0 for a fresh start
+    mock_rr.set_time.assert_any_call("step", sequence=0)
+    mock_rr.set_time.assert_any_call("time", duration=0.0)
     logged_paths = [call.args[0] for call in mock_rr.log.call_args_list]
     assert "session/policy_0" in logged_paths
     assert "session/instructions" in logged_paths
     logger.shutdown()
 
 
-def test_clear_advances_step_offset(mock_rr):
+def test_clear_resets_step_offset(mock_rr):
     from robotics_playground.rerun_logger import RerunLogger
 
     logger = RerunLogger()
     logger._initialized = True
+    logger._step_offset = 100  # Simulate accumulated offset
     logger._last_step = 10
     logger.clear()
-    assert logger._step_offset == 12
+    assert logger._step_offset == 0  # Reset to 0 for fresh start
     assert logger._last_step == 0
 
 
@@ -144,13 +147,14 @@ def test_clear_resets_start_time(mock_rr):
     assert logger._start_time is None
 
 
-def test_log_after_clear_uses_offset(mock_rr):
+def test_log_after_clear_starts_at_zero(mock_rr):
     from robotics_playground.rerun_logger import RerunLogger
 
     logger = RerunLogger()
     logger.start()
     logger.flush()
 
+    logger._step_offset = 100  # Simulate accumulated offset
     logger._last_step = 5
     logger.clear()
     logger.flush()
@@ -162,11 +166,11 @@ def test_log_after_clear_uses_offset(mock_rr):
         "joint_positions": [0.1],
         "joint_velocities": [0.0],
     }
-    # After clear, _start_time is None, so first observation sets new baseline
+    # After clear, step_offset is 0 and first observation sets new time baseline
     logger.log_observation(obs, step=0, wallclock_time=25.0)
     logger.flush()
 
-    mock_rr.set_time.assert_any_call("step", sequence=7)
+    mock_rr.set_time.assert_any_call("step", sequence=0)  # Starts at 0, not offset
     mock_rr.set_time.assert_any_call("time", duration=0.0)  # First log after clear resets to 0
     logger.shutdown()
 
