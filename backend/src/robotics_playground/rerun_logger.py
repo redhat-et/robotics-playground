@@ -222,16 +222,17 @@ class RerunLogger:
     def clear(self):
         if not self._initialized:
             return
-        clear_step = self._step_offset + self._last_step + 1
-        self._step_offset = clear_step + 1
+        # Reset to step 0 for a true fresh start
+        self._step_offset = 0
         self._last_step = 0
         self._start_time = None
-        logger.info("Rerun logger cleared: step_offset=%d, start_time reset", self._step_offset)
+        logger.info("Rerun logger cleared: reset to step 0, start_time reset")
 
         prefix = self._prefix
 
         def _do_clear():
-            rr.set_time("step", sequence=clear_step)
+            rr.set_time("step", sequence=0)
+            rr.set_time("time", duration=0.0)
             rr.log(prefix, rr.Clear(recursive=True))
             rr.log("session/instructions", rr.Clear(recursive=True))
 
