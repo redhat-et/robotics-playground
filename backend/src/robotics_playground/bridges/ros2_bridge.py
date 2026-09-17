@@ -363,21 +363,32 @@ class ROS2Bridge:
             self._float_array_publisher.publish(msg)
 
     async def _await_ros2_service(self, future, timeout: float = 5.0):
-        """Await a ROS2 service future with timeout, converting to asyncio."""
+        """Await a ROS2 service future with timeout, converting to asyncio.
+
+        ROS2 futures are polled by the rclpy executor (spin thread).
+        We bridge them to asyncio by creating an asyncio Future and
+        setting its result from the ROS2 future's done callback.
+        """
         loop = asyncio.get_running_loop()
+        asyncio_future = loop.create_future()
 
-        def _wait():
-            import time
+        def on_done(ros_future):
+            """Called by rclpy executor when service completes."""
+            if asyncio_future.done():
+                return  # Already timed out or cancelled
 
-            deadline = time.monotonic() + timeout
-            while not future.done():
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError(f"Service call timed out after {timeout}s")
-                time.sleep(0.01)
-            return future.result()
+            try:
+                result = ros_future.result()
+                loop.call_soon_threadsafe(asyncio_future.set_result, result)
+            except Exception as exc:
+                loop.call_soon_threadsafe(asyncio_future.set_exception, exc)
 
-        return await loop.run_in_executor(None, _wait)
+        future.add_done_callback(on_done)
+
+        try:
+            return await asyncio.wait_for(asyncio_future, timeout=timeout)
+        except TimeoutError as exc:
+            raise TimeoutError(f"Service call timed out after {timeout}s") from exc
 
     async def sim_control(self, action: str, speed: float | None = None) -> None:
         if self._node is None:
