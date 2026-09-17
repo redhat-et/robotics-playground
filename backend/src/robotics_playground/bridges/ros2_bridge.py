@@ -362,6 +362,23 @@ class ROS2Bridge:
             msg.data = [float(v) for v in action["joint_positions"]]
             self._float_array_publisher.publish(msg)
 
+    async def _await_ros2_service(self, future, timeout: float = 5.0):
+        """Await a ROS2 service future with timeout, converting to asyncio."""
+        loop = asyncio.get_running_loop()
+
+        def _wait():
+            import time
+
+            deadline = time.monotonic() + timeout
+            while not future.done():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(f"Service call timed out after {timeout}s")
+                time.sleep(0.01)
+            return future.result()
+
+        return await loop.run_in_executor(None, _wait)
+
     async def sim_control(self, action: str, speed: float | None = None) -> None:
         if self._node is None:
             return
@@ -373,24 +390,25 @@ class ROS2Bridge:
         )
 
         if action in ("play", "pause", "stop"):
-            self._sim_paused = action in ("pause", "stop")
             state_map = {"stop": 0, "play": 1, "pause": 2}
             if self._set_simulation_state_client is not None:
-                # Standard simulation_interfaces uses STATE_STOPPED, STATE_PLAYING, STATE_PAUSED
                 request = SetSimulationState.Request()
                 request.state = state_map[action]
                 try:
                     future = self._set_simulation_state_client.call_async(request)
-                    # Don't await - fire and continue (non-blocking)
-                    future.add_done_callback(
-                        lambda f: (
-                            logger.debug("SetSimulationState(%s) completed", action)
-                            if f.result()
-                            else logger.warning("SetSimulationState(%s) failed", action)
-                        )
-                    )
+                    response = await self._await_ros2_service(future, timeout=5.0)
+                    if not response.success:
+                        logger.warning("SetSimulationState(%s) returned failure", action)
+                        raise RuntimeError(f"SetSimulationState({action}) failed")
+                    # Only update state after confirmed success
+                    self._sim_paused = action in ("pause", "stop")
+                    logger.debug("SetSimulationState(%s) completed successfully", action)
+                except TimeoutError:
+                    logger.warning("SetSimulationState(%s) timed out", action)
+                    raise
                 except Exception as exc:
-                    logger.warning("SetSimulationState(%s) call failed: %s", action, exc)
+                    logger.warning("SetSimulationState(%s) failed: %s", action, exc)
+                    raise
 
         elif action == "step":
             if self._step_simulation_client is not None:
@@ -398,32 +416,36 @@ class ROS2Bridge:
                 request.steps = self._config.physics_decimation
                 try:
                     future = self._step_simulation_client.call_async(request)
-                    future.add_done_callback(
-                        lambda f: (
-                            logger.debug("StepSimulation(%d) completed", request.steps)
-                            if f.result()
-                            else logger.warning("StepSimulation failed")
-                        )
-                    )
+                    response = await self._await_ros2_service(future, timeout=5.0)
+                    if not response.success:
+                        logger.warning("StepSimulation returned failure")
+                        raise RuntimeError("StepSimulation failed")
+                    logger.debug("StepSimulation(%d) completed successfully", request.steps)
+                except TimeoutError:
+                    logger.warning("StepSimulation timed out")
+                    raise
                 except Exception as exc:
-                    logger.warning("StepSimulation call failed: %s", exc)
+                    logger.warning("StepSimulation failed: %s", exc)
+                    raise
 
         elif action == "reset":
             if self._reset_simulation_client is not None:
                 request = ResetSimulation.Request()
-                # Standard ResetSimulation clears action manager buffers!
                 try:
                     future = self._reset_simulation_client.call_async(request)
-                    future.add_done_callback(
-                        lambda f: (
-                            logger.info("ResetSimulation completed successfully")
-                            if f.result()
-                            else logger.warning("ResetSimulation failed")
-                        )
-                    )
+                    response = await self._await_ros2_service(future, timeout=5.0)
+                    if not response.success:
+                        logger.warning("ResetSimulation returned failure")
+                        raise RuntimeError("ResetSimulation failed")
+                    # Only reset step counter after confirmed success
+                    self._step = 0
+                    logger.info("ResetSimulation completed successfully")
+                except TimeoutError:
+                    logger.warning("ResetSimulation timed out")
+                    raise
                 except Exception as exc:
-                    logger.warning("ResetSimulation call failed: %s", exc)
-            self._step = 0
+                    logger.warning("ResetSimulation failed: %s", exc)
+                    raise
 
     def add_observation_listener(self, callback: Callable[[Observation], None]) -> None:
         self._obs_listeners.append(callback)

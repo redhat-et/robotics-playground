@@ -3,7 +3,8 @@ FROM docker.io/ros:jazzy AS builder
 WORKDIR /build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-pip python3-venv python3-dev gcc && \
+    python3-pip python3-venv python3-dev gcc \
+    ros-jazzy-simulation-interfaces && \
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
@@ -13,6 +14,10 @@ RUN python3 -m venv /venv && \
     cp -a /venv/lib/python3.12/site-packages /install-pkgs
 
 FROM docker.io/ros:jazzy
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-jazzy-simulation-interfaces && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install-pkgs /usr/lib/python3/dist-packages
 COPY src/ /app/src/
