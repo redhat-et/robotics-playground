@@ -202,7 +202,6 @@ async def websocket_session(websocket: WebSocket, session_id: str):
     session: Session = app.state.session
     sim_state: _SimState = app.state.sim_state
     bridge = app.state.bridge
-    rerun_logger: RerunLogger = app.state.rerun_logger
     send_lock = asyncio.Lock()
 
     async def send_status():
