@@ -135,6 +135,8 @@ class RerunLogger:
             )
             for name in self._camera_names
         ]
+        # Show entire session from 0 to current time (infinite end)
+        # Both plots use the same time range for consistency
         time_range = rrb.VisibleTimeRanges(
             timeline="time",
             start=rrb.TimeRangeBoundary.absolute(seconds=0.0),
@@ -224,6 +226,7 @@ class RerunLogger:
         self._step_offset = clear_step + 1
         self._last_step = 0
         self._start_time = None
+        logger.info("Rerun logger cleared: step_offset=%d, start_time reset", self._step_offset)
 
         prefix = self._prefix
 
@@ -248,6 +251,7 @@ class RerunLogger:
         if wallclock_time is not None:
             if self._start_time is None:
                 self._start_time = wallclock_time
+                logger.info("Wallclock time baseline set: %.3f (step=%d)", wallclock_time, step)
             time_seconds = wallclock_time - self._start_time
         else:
             time_seconds = 0.0

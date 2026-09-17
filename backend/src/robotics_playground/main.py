@@ -39,46 +39,46 @@ class _SimState:
             self.state = "idle"
 
 
-async def _observation_streamer(
-    bridge,
-    rerun_logger: RerunLogger,
-    stop_event: asyncio.Event,
-):
-    """Always-on observation logger.
+class _ObservationStreamer:
+    """Manages always-on observation streaming to Rerun."""
 
-    Streams observations to Rerun as soon as the bridge is connected,
-    independent of the policy session.
-    """
-    obs_step = [0]
-    logging_active = False
+    def __init__(self, bridge, rerun_logger: RerunLogger):
+        self.bridge = bridge
+        self.rerun_logger = rerun_logger
+        self.obs_step = 0
+        self.logging_active = False
 
-    def _log_obs(obs):
-        step = obs_step[0]
-        obs_step[0] += 1
+    def _log_obs(self, obs):
         wallclock_time = time.monotonic()
-        rerun_logger.log_observation(obs, step, wallclock_time=wallclock_time)
+        self.rerun_logger.log_observation(obs, self.obs_step, wallclock_time=wallclock_time)
+        self.obs_step += 1
 
-    try:
-        while not stop_event.is_set():
-            bridge_ok = bridge.bridge_status == "connected"
+    def reset(self):
+        """Reset the observation step counter and wallclock time."""
+        self.obs_step = 0
+        self.rerun_logger.clear()
 
-            if bridge_ok and not logging_active:
-                bridge.add_observation_listener(_log_obs)
-                logging_active = True
-                logger.info("Observation streaming started")
-            elif not bridge_ok and logging_active:
-                bridge.remove_observation_listener(_log_obs)
-                logging_active = False
-                logger.info("Observation streaming paused (bridge disconnected)")
+    async def run(self, stop_event: asyncio.Event):
+        """Run the observation streaming loop."""
+        try:
+            while not stop_event.is_set():
+                bridge_ok = self.bridge.bridge_status == "connected"
 
-            await asyncio.sleep(1.0)
-    except asyncio.CancelledError:
-        pass
-    finally:
-        if logging_active:
-            bridge.remove_observation_listener(_log_obs)
+                if bridge_ok and not self.logging_active:
+                    self.bridge.add_observation_listener(self._log_obs)
+                    self.logging_active = True
+                    logger.info("Observation streaming started")
+                elif not bridge_ok and self.logging_active:
+                    self.bridge.remove_observation_listener(self._log_obs)
+                    self.logging_active = False
+                    logger.info("Observation streaming paused (bridge disconnected)")
 
-    return _log_obs, obs_step
+                await asyncio.sleep(1.0)
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if self.logging_active:
+                self.bridge.remove_observation_listener(self._log_obs)
 
 
 async def _heartbeat(bridge, session: Session, stop_event: asyncio.Event):
@@ -137,13 +137,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         await session.start_loop()
 
         stop_event = asyncio.Event()
-        obs_task = asyncio.create_task(_observation_streamer(bridge, rerun_logger, stop_event))
+        obs_streamer = _ObservationStreamer(bridge, rerun_logger)
+        obs_task = asyncio.create_task(obs_streamer.run(stop_event))
         heartbeat_task = asyncio.create_task(_heartbeat(bridge, session, stop_event))
 
         app.state.bridge = bridge
         app.state.rerun_logger = rerun_logger
         app.state.session = session
         app.state.sim_state = sim_state
+        app.state.obs_streamer = obs_streamer
         try:
             yield
         finally:
@@ -261,7 +263,8 @@ async def websocket_session(websocket: WebSocket, session_id: str):
                     sim_state.on_command(action)
                     session.sim_state = sim_state.state
                     if action == "reset":
-                        rerun_logger.clear()
+                        obs_streamer = app.state.obs_streamer
+                        obs_streamer.reset()
                         session.clear_instruction()
 
             elif msg_type == "select_model":
