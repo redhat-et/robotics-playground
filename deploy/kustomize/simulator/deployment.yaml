@@ -30,9 +30,9 @@ spec:
             - --one-time
           env:
             - name: ENV_GIT_REPO
-              value: https://github.com/redhat-et/ros2_manager_based_env.git
+              value: https://github.com/fzdarsky/ros2_manager_based_env.git
             - name: ENV_GIT_REF
-              value: main
+              value: feat/simulation-interfaces-services
           volumeMounts:
             - name: env-source
               mountPath: /git
