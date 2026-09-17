@@ -40,10 +40,9 @@ class ROS2Bridge:
         self._publisher = None
         self._float_array_publisher = None
         self._owns_rclpy = False
-        self._sim_state_pub = None
-        self._step_pub = None
-        self._teleport_pub = None
-        self._Int32 = None
+        self._reset_simulation_client = None
+        self._set_simulation_state_client = None
+        self._step_simulation_client = None
         self._last_obs_time: float = 0.0
         self._connect_time: float = 0.0
         self._watchdog_task: asyncio.Task | None = None
@@ -61,7 +60,12 @@ class ROS2Bridge:
         from rclpy.node import Node
         from rclpy.qos import QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import Image, JointState
-        from std_msgs.msg import Float32MultiArray, Int32
+        from simulation_interfaces.srv import (
+            ResetSimulation,
+            SetSimulationState,
+            StepSimulation,
+        )
+        from std_msgs.msg import Float32MultiArray
 
         sensor_qos = QoSProfile(
             depth=1,
@@ -109,10 +113,14 @@ class ROS2Bridge:
                 10,
             )
 
-        self._Int32 = Int32
-        self._sim_state_pub = self._node.create_publisher(Int32, "/sim_control/state", 10)
-        self._step_pub = self._node.create_publisher(Int32, "/sim_control/step", 10)
-        self._teleport_pub = self._node.create_publisher(Int32, "/sim_control/teleport", 10)
+        # Standard simulation_interfaces service clients
+        self._reset_simulation_client = self._node.create_client(
+            ResetSimulation, "/reset_simulation"
+        )
+        self._set_simulation_state_client = self._node.create_client(
+            SetSimulationState, "/set_simulation_state"
+        )
+        self._step_simulation_client = self._node.create_client(StepSimulation, "/step_simulation")
 
         self._spin_thread = threading.Thread(target=self._spin, daemon=True)
         self._spin_thread.start()
@@ -133,9 +141,9 @@ class ROS2Bridge:
             self._node = None
         self._publisher = None
         self._float_array_publisher = None
-        self._sim_state_pub = None
-        self._step_pub = None
-        self._teleport_pub = None
+        self._reset_simulation_client = None
+        self._set_simulation_state_client = None
+        self._step_simulation_client = None
         self._status = "disconnected"
         logger.info("ROS 2 node torn down, status=disconnected")
 
@@ -299,25 +307,63 @@ class ROS2Bridge:
         if self._node is None:
             return
 
+        from simulation_interfaces.srv import (
+            ResetSimulation,
+            SetSimulationState,
+            StepSimulation,
+        )
+
         if action in ("play", "pause", "stop"):
             self._sim_paused = action in ("pause", "stop")
             state_map = {"stop": 0, "play": 1, "pause": 2}
-            if self._sim_state_pub is not None:
-                msg = self._Int32()
-                msg.data = state_map[action]
-                self._sim_state_pub.publish(msg)
+            if self._set_simulation_state_client is not None:
+                # Standard simulation_interfaces uses STATE_STOPPED, STATE_PLAYING, STATE_PAUSED
+                request = SetSimulationState.Request()
+                request.state = state_map[action]
+                try:
+                    future = self._set_simulation_state_client.call_async(request)
+                    # Don't await - fire and continue (non-blocking)
+                    future.add_done_callback(
+                        lambda f: (
+                            logger.debug("SetSimulationState(%s) completed", action)
+                            if f.result()
+                            else logger.warning("SetSimulationState(%s) failed", action)
+                        )
+                    )
+                except Exception as exc:
+                    logger.warning("SetSimulationState(%s) call failed: %s", action, exc)
 
         elif action == "step":
-            if self._step_pub is not None:
-                msg = self._Int32()
-                msg.data = self._config.physics_decimation
-                self._step_pub.publish(msg)
+            if self._step_simulation_client is not None:
+                request = StepSimulation.Request()
+                request.steps = self._config.physics_decimation
+                try:
+                    future = self._step_simulation_client.call_async(request)
+                    future.add_done_callback(
+                        lambda f: (
+                            logger.debug("StepSimulation(%d) completed", request.steps)
+                            if f.result()
+                            else logger.warning("StepSimulation failed")
+                        )
+                    )
+                except Exception as exc:
+                    logger.warning("StepSimulation call failed: %s", exc)
 
         elif action == "reset":
-            if self._teleport_pub is not None:
-                msg = self._Int32()
-                msg.data = 1
-                self._teleport_pub.publish(msg)
+            if self._reset_simulation_client is not None:
+                request = ResetSimulation.Request()
+                # Standard ResetSimulation clears action manager buffers!
+                try:
+                    future = self._reset_simulation_client.call_async(request)
+                    future.add_done_callback(
+                        lambda f: (
+                            logger.info("ResetSimulation completed successfully")
+                            if f.result()
+                            else logger.warning("ResetSimulation failed")
+                        )
+                    )
+                except Exception as exc:
+                    logger.warning("ResetSimulation call failed: %s", exc)
             self._step = 0
 
     def add_observation_listener(self, callback: Callable[[Observation], None]) -> None:
