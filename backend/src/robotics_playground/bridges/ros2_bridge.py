@@ -43,10 +43,13 @@ class ROS2Bridge:
         self._reset_simulation_client = None
         self._set_simulation_state_client = None
         self._step_simulation_client = None
+        self._get_simulation_state_client = None
+        self._sim_state: int | None = None  # STATE_STOPPED=0, STATE_PLAYING=1, STATE_PAUSED=2
         self._last_obs_time: float = 0.0
         self._connect_time: float = 0.0
         self._watchdog_task: asyncio.Task | None = None
         self._sim_paused = False
+        self._last_state_query_time: float = 0.0
         self._enqueue_interval: float = 0.033  # ~30 Hz cap on cross-thread handoff
         self._last_enqueue_time: float = 0.0
         self._obs_listeners: list[Callable[[Observation], None]] = []
@@ -55,12 +58,21 @@ class ROS2Bridge:
     def bridge_status(self) -> str:
         return self._status
 
+    @property
+    def sim_state(self) -> str:
+        """Return sim state as string: idle/running/paused."""
+        if self._sim_state is None:
+            return "idle"  # Unknown state = assume idle
+        state_map = {0: "idle", 1: "running", 2: "paused"}  # STATE_STOPPED/PLAYING/PAUSED
+        return state_map.get(self._sim_state, "idle")
+
     def _setup_node(self) -> None:
         from rclpy.executors import SingleThreadedExecutor
         from rclpy.node import Node
         from rclpy.qos import QoSProfile, ReliabilityPolicy
         from sensor_msgs.msg import Image, JointState
         from simulation_interfaces.srv import (
+            GetSimulationState,
             ResetSimulation,
             SetSimulationState,
             StepSimulation,
@@ -121,6 +133,9 @@ class ROS2Bridge:
             SetSimulationState, "/set_simulation_state"
         )
         self._step_simulation_client = self._node.create_client(StepSimulation, "/step_simulation")
+        self._get_simulation_state_client = self._node.create_client(
+            GetSimulationState, "/get_simulation_state"
+        )
 
         self._spin_thread = threading.Thread(target=self._spin, daemon=True)
         self._spin_thread.start()
@@ -144,6 +159,8 @@ class ROS2Bridge:
         self._reset_simulation_client = None
         self._set_simulation_state_client = None
         self._step_simulation_client = None
+        self._get_simulation_state_client = None
+        self._sim_state = None
         self._status = "disconnected"
         logger.info("ROS 2 node torn down, status=disconnected")
 
@@ -163,6 +180,36 @@ class ROS2Bridge:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._teardown_node)
         await loop.run_in_executor(None, self._setup_node)
+
+    async def _query_simulation_state(self) -> None:
+        """Query GetSimulationState service to sync backend view with simulator."""
+        if self._get_simulation_state_client is None or self._loop is None:
+            return
+
+        from simulation_interfaces.srv import GetSimulationState
+
+        try:
+            request = GetSimulationState.Request()
+            future = self._get_simulation_state_client.call_async(request)
+
+            def on_response(f):
+                try:
+                    response = f.result()
+                    old_state = self._sim_state
+                    self._sim_state = response.state
+                    if old_state is not None and old_state != response.state:
+                        state_names = {0: "STOPPED", 1: "PLAYING", 2: "PAUSED"}
+                        logger.info(
+                            "Simulation state changed: %s -> %s",
+                            state_names.get(old_state, old_state),
+                            state_names.get(response.state, response.state),
+                        )
+                except Exception as exc:
+                    logger.debug("GetSimulationState query failed: %s", exc)
+
+            future.add_done_callback(on_response)
+        except Exception as exc:
+            logger.debug("GetSimulationState call failed: %s", exc)
 
     async def _watchdog(self) -> None:
         delay = self._reconnect_delay
@@ -198,6 +245,15 @@ class ROS2Bridge:
                     delay = min(delay * 2, self._max_reconnect_delay)
                 else:
                     delay = self._reconnect_delay
+
+                # Poll GetSimulationState periodically to detect drift
+                if (
+                    self._get_simulation_state_client is not None
+                    and now - self._last_state_query_time > 5.0
+                ):
+                    self._last_state_query_time = now
+                    await self._query_simulation_state()
+
             except Exception:
                 logger.exception("Watchdog reconnect attempt failed; will retry")
 
@@ -232,6 +288,9 @@ class ROS2Bridge:
         if self._status == "connecting":
             self._status = "connected"
             logger.info("First observation received, status=connected")
+            # Query initial simulation state
+            if self._loop is not None:
+                self._loop.create_task(self._query_simulation_state())
 
         if now - self._last_enqueue_time < self._enqueue_interval:
             return
