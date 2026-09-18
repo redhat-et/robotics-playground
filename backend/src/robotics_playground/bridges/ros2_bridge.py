@@ -190,7 +190,6 @@ class ROS2Bridge:
 
         try:
             request = GetSimulationState.Request()
-            future = self._get_simulation_state_client.call_async(request)
 
             def on_response(f):
                 try:
@@ -207,7 +206,13 @@ class ROS2Bridge:
                 except Exception as exc:
                     logger.debug("GetSimulationState query failed: %s", exc)
 
-            future.add_done_callback(on_response)
+            # Thread-safe service call
+            def _make_call():
+                future = self._get_simulation_state_client.call_async(request)
+                future.add_done_callback(on_response)
+
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _make_call)
         except Exception as exc:
             logger.debug("GetSimulationState call failed: %s", exc)
 
@@ -362,28 +367,39 @@ class ROS2Bridge:
             msg.data = [float(v) for v in action["joint_positions"]]
             self._float_array_publisher.publish(msg)
 
-    async def _await_ros2_service(self, future, timeout: float = 5.0):
-        """Await a ROS2 service future with timeout, converting to asyncio.
+    async def _call_service_async(self, client, request, timeout: float = 5.0):
+        """Thread-safe service call that bridges ROS2 to asyncio.
 
-        ROS2 futures are polled by the rclpy executor (spin thread).
-        We bridge them to asyncio by creating an asyncio Future and
-        setting its result from the ROS2 future's done callback.
+        The service client's call_async must be invoked from a thread-safe context
+        to avoid GIL violations and segfaults. We use a lock to ensure only one
+        service call happens at a time.
         """
         loop = asyncio.get_running_loop()
         asyncio_future = loop.create_future()
+        ros_future = None
 
-        def on_done(ros_future):
-            """Called by rclpy executor when service completes."""
-            if asyncio_future.done():
-                return  # Already timed out or cancelled
+        # Thread-safe service call with lock
+        lock = threading.Lock()
 
-            try:
-                result = ros_future.result()
-                loop.call_soon_threadsafe(asyncio_future.set_result, result)
-            except Exception as exc:
-                loop.call_soon_threadsafe(asyncio_future.set_exception, exc)
+        def _make_call():
+            nonlocal ros_future
+            with lock:
+                ros_future = client.call_async(request)
 
-        future.add_done_callback(on_done)
+                def on_done(f):
+                    """Called by rclpy executor when service completes."""
+                    if asyncio_future.done():
+                        return  # Already timed out or cancelled
+                    try:
+                        result = f.result()
+                        loop.call_soon_threadsafe(asyncio_future.set_result, result)
+                    except Exception as exc:
+                        loop.call_soon_threadsafe(asyncio_future.set_exception, exc)
+
+                ros_future.add_done_callback(on_done)
+
+        # Run the call on the executor to avoid threading issues
+        await loop.run_in_executor(None, _make_call)
 
         try:
             return await asyncio.wait_for(asyncio_future, timeout=timeout)
@@ -406,8 +422,9 @@ class ROS2Bridge:
                 request = SetSimulationState.Request()
                 request.state = state_map[action]
                 try:
-                    future = self._set_simulation_state_client.call_async(request)
-                    response = await self._await_ros2_service(future, timeout=5.0)
+                    response = await self._call_service_async(
+                        self._set_simulation_state_client, request, timeout=5.0
+                    )
                     if not response.success:
                         logger.warning("SetSimulationState(%s) returned failure", action)
                         raise RuntimeError(f"SetSimulationState({action}) failed")
@@ -426,8 +443,9 @@ class ROS2Bridge:
                 request = StepSimulation.Request()
                 request.steps = self._config.physics_decimation
                 try:
-                    future = self._step_simulation_client.call_async(request)
-                    response = await self._await_ros2_service(future, timeout=5.0)
+                    response = await self._call_service_async(
+                        self._step_simulation_client, request, timeout=5.0
+                    )
                     if not response.success:
                         logger.warning("StepSimulation returned failure")
                         raise RuntimeError("StepSimulation failed")
@@ -443,8 +461,9 @@ class ROS2Bridge:
             if self._reset_simulation_client is not None:
                 request = ResetSimulation.Request()
                 try:
-                    future = self._reset_simulation_client.call_async(request)
-                    response = await self._await_ros2_service(future, timeout=5.0)
+                    response = await self._call_service_async(
+                        self._reset_simulation_client, request, timeout=5.0
+                    )
                     if not response.success:
                         logger.warning("ResetSimulation returned failure")
                         raise RuntimeError("ResetSimulation failed")
