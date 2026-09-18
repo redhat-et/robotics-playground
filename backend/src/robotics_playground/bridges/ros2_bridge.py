@@ -196,13 +196,13 @@ class ROS2Bridge:
                 try:
                     response = f.result()
                     old_state = self._sim_state
-                    self._sim_state = response.state.data
-                    if old_state is not None and old_state != response.state.data:
+                    self._sim_state = response.state.state
+                    if old_state is not None and old_state != response.state.state:
                         state_names = {0: "STOPPED", 1: "PLAYING", 2: "PAUSED"}
                         logger.info(
                             "Simulation state changed: %s -> %s",
                             state_names.get(old_state, old_state),
-                            state_names.get(response.state.data, response.state.data),
+                            state_names.get(response.state.state, response.state.state),
                         )
                 except Exception as exc:
                     logger.debug("GetSimulationState query failed: %s", exc)
@@ -278,12 +278,20 @@ class ROS2Bridge:
                     call_request = self._service_call_queue.get_nowait()
                     client, request_factory, result_callback = call_request
                     try:
-                        # Create Request in THIS thread - ROS2 messages are NOT thread-safe!
                         request = request_factory()
-                        # THIS is the only thread where call_async is safe!
+                        logger.debug(
+                            "Spin thread: call_async(%s, %s)",
+                            type(client).__name__,
+                            type(request).__name__,
+                        )
                         ros_future = client.call_async(request)
                         result_callback(ros_future, None)
                     except Exception as exc:
+                        logger.warning(
+                            "Spin thread: call_async failed: %s: %s",
+                            type(exc).__name__,
+                            exc,
+                        )
                         result_callback(None, exc)
             except queue.Empty:
                 pass
@@ -456,7 +464,7 @@ class ROS2Bridge:
 
                 def make_request():
                     req = SetSimulationState.Request()
-                    req.state.data = target_state
+                    req.state.state = target_state
                     return req
 
                 try:
