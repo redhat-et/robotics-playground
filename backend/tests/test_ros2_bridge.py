@@ -1,9 +1,45 @@
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+
+
+class FakeRos2Future:
+    """Simulates a ROS2 future whose callback is triggered by the rclpy spin thread."""
+
+    def __init__(self):
+        self._callbacks = []
+        self._result = None
+        self._exception = None
+        self._done = False
+
+    def add_done_callback(self, cb):
+        self._callbacks.append(cb)
+        if self._done:
+            cb(self)
+
+    def done(self):
+        return self._done
+
+    def result(self):
+        if self._exception:
+            raise self._exception
+        return self._result
+
+    def set_result(self, result):
+        self._result = result
+        self._done = True
+        for cb in self._callbacks:
+            cb(self)
+
+    def set_exception(self, exc):
+        self._exception = exc
+        self._done = True
+        for cb in self._callbacks:
+            cb(self)
 
 
 @pytest.fixture
@@ -309,3 +345,580 @@ async def test_ros2_bridge_watchdog_cancels_on_close(mock_rclpy):
     assert not bridge._watchdog_task.done()
     await bridge.close()
     assert bridge._watchdog_task is None
+
+
+# ===== Priority 1: _await_ros2_service Tests =====
+
+
+@pytest.mark.anyio
+async def test_await_ros2_service_success(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    fake_future = FakeRos2Future()
+    mock_response = MagicMock()
+    mock_response.success = True
+
+    # Schedule the callback to fire after a brief delay
+    async def trigger_callback():
+        await asyncio.sleep(0.01)
+        fake_future.set_result(mock_response)
+
+    asyncio.create_task(trigger_callback())  # noqa: RUF006
+
+    result = await bridge._await_ros2_service(fake_future, timeout=1.0)
+    assert result is mock_response
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_await_ros2_service_timeout(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    fake_future = FakeRos2Future()
+    # Never call set_result — future never completes
+
+    with pytest.raises(TimeoutError, match=r"Service call timed out after 0\.1s"):
+        await bridge._await_ros2_service(fake_future, timeout=0.1)
+
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_await_ros2_service_exception(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    fake_future = FakeRos2Future()
+    test_exception = RuntimeError("Service failed")
+
+    async def trigger_exception():
+        await asyncio.sleep(0.01)
+        fake_future.set_exception(test_exception)
+
+    asyncio.create_task(trigger_exception())  # noqa: RUF006
+
+    with pytest.raises(RuntimeError, match="Service failed"):
+        await bridge._await_ros2_service(fake_future, timeout=1.0)
+
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_await_ros2_service_late_callback_after_timeout(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    fake_future = FakeRos2Future()
+
+    # Future times out first
+    with pytest.raises(TimeoutError):
+        await bridge._await_ros2_service(fake_future, timeout=0.1)
+
+    # Then callback fires late — should not crash (already-done guard)
+    mock_response = MagicMock()
+    fake_future.set_result(mock_response)
+
+    await bridge.close()
+
+
+# ===== Priority 2: sim_control Tests =====
+
+
+@pytest.mark.anyio
+async def test_sim_control_play_success(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    # Configure mock service client
+    mock_client = bridge._set_simulation_state_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.success = True
+
+    # Trigger callback shortly after call
+    async def trigger_success():
+        await asyncio.sleep(0.01)
+        fake_future.set_result(mock_response)
+
+    asyncio.create_task(trigger_success())  # noqa: RUF006
+
+    await bridge.sim_control("play")
+
+    assert bridge._sim_paused is False
+    mock_client.call_async.assert_called_once()
+    request = mock_client.call_async.call_args[0][0]
+    assert request.state == 1  # STATE_PLAYING
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_pause_success(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    mock_client = bridge._set_simulation_state_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.success = True
+
+    async def trigger_success():
+        await asyncio.sleep(0.01)
+        fake_future.set_result(mock_response)
+
+    asyncio.create_task(trigger_success())  # noqa: RUF006
+
+    await bridge.sim_control("pause")
+
+    assert bridge._sim_paused is True
+    request = mock_client.call_async.call_args[0][0]
+    assert request.state == 2  # STATE_PAUSED
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_stop_success(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    mock_client = bridge._set_simulation_state_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.success = True
+
+    async def trigger_success():
+        await asyncio.sleep(0.01)
+        fake_future.set_result(mock_response)
+
+    asyncio.create_task(trigger_success())  # noqa: RUF006
+
+    await bridge.sim_control("stop")
+
+    assert bridge._sim_paused is True
+    request = mock_client.call_async.call_args[0][0]
+    assert request.state == 0  # STATE_STOPPED
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_set_state_failure(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    mock_client = bridge._set_simulation_state_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.success = False
+
+    async def trigger_failure():
+        await asyncio.sleep(0.01)
+        fake_future.set_result(mock_response)
+
+    asyncio.create_task(trigger_failure())  # noqa: RUF006
+
+    with pytest.raises(RuntimeError, match="SetSimulationState\\(play\\) failed"):
+        await bridge.sim_control("play")
+
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_set_state_timeout(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    mock_client = bridge._set_simulation_state_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+    # Never call set_result — timeout
+
+    with pytest.raises(TimeoutError):
+        await bridge.sim_control("play")
+
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_step_success(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    config = ROS2Config(cameras={"wrist": "/cam/wrist"}, physics_decimation=10)
+    bridge = ROS2Bridge(config)
+    await bridge.start()
+
+    mock_client = bridge._step_simulation_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.success = True
+
+    async def trigger_success():
+        await asyncio.sleep(0.01)
+        fake_future.set_result(mock_response)
+
+    asyncio.create_task(trigger_success())  # noqa: RUF006
+
+    await bridge.sim_control("step")
+
+    mock_client.call_async.assert_called_once()
+    request = mock_client.call_async.call_args[0][0]
+    assert request.steps == 10
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_step_failure(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    mock_client = bridge._step_simulation_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.success = False
+
+    async def trigger_failure():
+        await asyncio.sleep(0.01)
+        fake_future.set_result(mock_response)
+
+    asyncio.create_task(trigger_failure())  # noqa: RUF006
+
+    with pytest.raises(RuntimeError, match="StepSimulation failed"):
+        await bridge.sim_control("step")
+
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_reset_success(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    # Advance step counter first
+    bridge._step = 42
+
+    mock_client = bridge._reset_simulation_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.success = True
+
+    async def trigger_success():
+        await asyncio.sleep(0.01)
+        fake_future.set_result(mock_response)
+
+    asyncio.create_task(trigger_success())  # noqa: RUF006
+
+    await bridge.sim_control("reset")
+
+    assert bridge._step == 0
+    mock_client.call_async.assert_called_once()
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_reset_preserves_step_on_failure(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    bridge._step = 42
+
+    mock_client = bridge._reset_simulation_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.success = False
+
+    async def trigger_failure():
+        await asyncio.sleep(0.01)
+        fake_future.set_result(mock_response)
+
+    asyncio.create_task(trigger_failure())  # noqa: RUF006
+
+    with pytest.raises(RuntimeError, match="ResetSimulation failed"):
+        await bridge.sim_control("reset")
+
+    assert bridge._step == 42  # Unchanged
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_reset_timeout(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    bridge._step = 42
+
+    mock_client = bridge._reset_simulation_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+    # Never call set_result
+
+    with pytest.raises(TimeoutError):
+        await bridge.sim_control("reset")
+
+    assert bridge._step == 42  # Unchanged
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_sim_control_unknown_action_is_noop(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    # Unknown action should not raise, just return
+    await bridge.sim_control("unknown_action")
+
+    # No service calls made
+    assert not bridge._set_simulation_state_client.call_async.called
+    assert not bridge._step_simulation_client.call_async.called
+    assert not bridge._reset_simulation_client.call_async.called
+    await bridge.close()
+
+
+# ===== Priority 3: sim_state Property Tests =====
+
+
+@pytest.mark.anyio
+async def test_sim_state_none_returns_idle(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    assert bridge._sim_state is None
+    assert bridge.sim_state == "idle"
+
+
+@pytest.mark.anyio
+async def test_sim_state_stopped_returns_idle(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    bridge._sim_state = 0  # STATE_STOPPED
+    assert bridge.sim_state == "idle"
+
+
+@pytest.mark.anyio
+async def test_sim_state_playing_returns_running(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    bridge._sim_state = 1  # STATE_PLAYING
+    assert bridge.sim_state == "running"
+
+
+@pytest.mark.anyio
+async def test_sim_state_paused_returns_paused(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    bridge._sim_state = 2  # STATE_PAUSED
+    assert bridge.sim_state == "paused"
+
+
+@pytest.mark.anyio
+async def test_sim_state_unknown_returns_idle(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    bridge._sim_state = 99  # Unknown state
+    assert bridge.sim_state == "idle"
+
+
+# ===== Priority 3: _query_simulation_state Tests =====
+
+
+@pytest.mark.anyio
+async def test_query_state_no_client_is_noop(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    # Set client to None to test early exit
+    bridge._get_simulation_state_client = None
+
+    await bridge._query_simulation_state()
+    # Should return without error
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_query_state_first_query_sets_state(mock_rclpy, caplog):
+    import logging
+
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    assert bridge._sim_state is None
+
+    mock_client = bridge._get_simulation_state_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.state = 1  # STATE_PLAYING
+
+    # Trigger callback immediately (fire-and-forget pattern)
+    fake_future.set_result(mock_response)
+
+    with caplog.at_level(logging.INFO):
+        await bridge._query_simulation_state()
+        await asyncio.sleep(0.05)  # Let callback process
+
+    assert bridge._sim_state == 1
+    # First query, no change log (old_state is None)
+    assert "Simulation state changed" not in caplog.text
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_query_state_unchanged_no_log(mock_rclpy, caplog):
+    import logging
+
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    bridge._sim_state = 1  # Already PLAYING
+
+    mock_client = bridge._get_simulation_state_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.state = 1  # Still PLAYING
+
+    fake_future.set_result(mock_response)
+
+    with caplog.at_level(logging.INFO):
+        await bridge._query_simulation_state()
+        await asyncio.sleep(0.05)
+
+    assert bridge._sim_state == 1
+    # State unchanged, no log
+    assert "Simulation state changed" not in caplog.text
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_query_state_changed_logs_transition(mock_rclpy, caplog):
+    import logging
+
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    bridge._sim_state = 1  # PLAYING
+
+    mock_client = bridge._get_simulation_state_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_response = MagicMock()
+    mock_response.state = 2  # PAUSED
+
+    fake_future.set_result(mock_response)
+
+    with caplog.at_level(logging.INFO):
+        await bridge._query_simulation_state()
+        await asyncio.sleep(0.05)
+
+    assert bridge._sim_state == 2
+    # State changed, should log transition
+    assert "Simulation state changed" in caplog.text
+    assert "PLAYING -> PAUSED" in caplog.text
+    await bridge.close()
+
+
+@pytest.mark.anyio
+async def test_query_state_exception_preserves_state(mock_rclpy):
+    from robotics_playground.bridges.ros2_bridge import ROS2Bridge
+    from robotics_playground.config import ROS2Config
+
+    bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
+    await bridge.start()
+
+    bridge._sim_state = 1  # PLAYING
+
+    mock_client = bridge._get_simulation_state_client
+    fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    test_exception = RuntimeError("Service failed")
+    fake_future.set_exception(test_exception)
+
+    await bridge._query_simulation_state()
+    await asyncio.sleep(0.05)
+
+    # State unchanged on exception
+    assert bridge._sim_state == 1
+    await bridge.close()
