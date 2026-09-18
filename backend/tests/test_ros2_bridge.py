@@ -497,7 +497,7 @@ async def test_sim_control_play_success(mock_rclpy):
     assert bridge._sim_paused is False
     mock_client.call_async.assert_called_once()
     request = mock_client.call_async.call_args[0][0]
-    assert request.state.data == 1  # STATE_PLAYING
+    assert request.state.state == 1  # STATE_PLAYING
     await bridge.close()
 
 
@@ -526,7 +526,7 @@ async def test_sim_control_pause_success(mock_rclpy):
 
     assert bridge._sim_paused is True
     request = mock_client.call_async.call_args[0][0]
-    assert request.state.data == 2  # STATE_PAUSED
+    assert request.state.state == 2  # STATE_PAUSED
     await bridge.close()
 
 
@@ -555,7 +555,7 @@ async def test_sim_control_stop_success(mock_rclpy):
 
     assert bridge._sim_paused is True
     request = mock_client.call_async.call_args[0][0]
-    assert request.state.data == 0  # STATE_STOPPED
+    assert request.state.state == 0  # STATE_STOPPED
     await bridge.close()
 
 
@@ -852,7 +852,7 @@ async def test_query_state_first_query_sets_state(mock_rclpy, caplog):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.state.data = 1  # STATE_PLAYING
+    mock_response.state.state = 1  # STATE_PLAYING
 
     # Trigger callback immediately (fire-and-forget pattern)
     fake_future.set_result(mock_response)
@@ -884,7 +884,7 @@ async def test_query_state_unchanged_no_log(mock_rclpy, caplog):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.state.data = 1  # Still PLAYING
+    mock_response.state.state = 1  # Still PLAYING
 
     fake_future.set_result(mock_response)
 
@@ -915,7 +915,7 @@ async def test_query_state_changed_logs_transition(mock_rclpy, caplog):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.state.data = 2  # PAUSED
+    mock_response.state.state = 2  # PAUSED
 
     fake_future.set_result(mock_response)
 
