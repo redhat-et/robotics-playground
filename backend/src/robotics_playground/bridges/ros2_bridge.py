@@ -492,7 +492,7 @@ class ROS2Bridge:
                     if not response.success:
                         logger.warning("StepSimulation returned failure")
                         raise RuntimeError("StepSimulation failed")
-                    logger.debug("StepSimulation(%d) completed successfully", request.steps)
+                    logger.debug("StepSimulation(%d) completed successfully", num_steps)
                 except TimeoutError:
                     logger.warning("StepSimulation timed out")
                     raise
