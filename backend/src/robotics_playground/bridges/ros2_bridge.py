@@ -196,13 +196,13 @@ class ROS2Bridge:
                 try:
                     response = f.result()
                     old_state = self._sim_state
-                    self._sim_state = response.state
-                    if old_state is not None and old_state != response.state:
+                    self._sim_state = response.state.data
+                    if old_state is not None and old_state != response.state.data:
                         state_names = {0: "STOPPED", 1: "PLAYING", 2: "PAUSED"}
                         logger.info(
                             "Simulation state changed: %s -> %s",
                             state_names.get(old_state, old_state),
-                            state_names.get(response.state, response.state),
+                            state_names.get(response.state.data, response.state.data),
                         )
                 except Exception as exc:
                     logger.debug("GetSimulationState query failed: %s", exc)
@@ -456,7 +456,7 @@ class ROS2Bridge:
 
                 def make_request():
                     req = SetSimulationState.Request()
-                    req.state = target_state
+                    req.state.data = target_state
                     return req
 
                 try:
