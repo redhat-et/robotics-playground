@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import queue
 import threading
 import time
 from collections.abc import AsyncIterator, Callable
@@ -53,6 +54,7 @@ class ROS2Bridge:
         self._enqueue_interval: float = 0.033  # ~30 Hz cap on cross-thread handoff
         self._last_enqueue_time: float = 0.0
         self._obs_listeners: list[Callable[[Observation], None]] = []
+        self._service_call_queue: queue.Queue = queue.Queue()
 
     @property
     def bridge_status(self) -> str:
@@ -206,13 +208,17 @@ class ROS2Bridge:
                 except Exception as exc:
                     logger.debug("GetSimulationState query failed: %s", exc)
 
-            # Thread-safe service call
-            def _make_call():
-                future = self._get_simulation_state_client.call_async(request)
-                future.add_done_callback(on_response)
+            def result_callback(ros_future, error):
+                """Called by spin thread after call_async."""
+                if error:
+                    logger.debug("GetSimulationState call failed: %s", error)
+                    return
+                ros_future.add_done_callback(on_response)
 
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _make_call)
+            # Queue the service call for the spin thread
+            self._service_call_queue.put(
+                (self._get_simulation_state_client, request, result_callback)
+            )
         except Exception as exc:
             logger.debug("GetSimulationState call failed: %s", exc)
 
@@ -264,6 +270,20 @@ class ROS2Bridge:
 
     def _spin(self):
         while (executor := self._executor) is not None:
+            # Process any pending service call requests from the queue
+            try:
+                while True:
+                    call_request = self._service_call_queue.get_nowait()
+                    client, request, result_callback = call_request
+                    try:
+                        # THIS is the only thread where call_async is safe!
+                        ros_future = client.call_async(request)
+                        result_callback(ros_future, None)
+                    except Exception as exc:
+                        result_callback(None, exc)
+            except queue.Empty:
+                pass
+
             executor.spin_once(timeout_sec=0.01)
             # Yield the GIL so the asyncio event loop can run.
             # Without this, the spin thread monopolises the GIL when
@@ -370,36 +390,40 @@ class ROS2Bridge:
     async def _call_service_async(self, client, request, timeout: float = 5.0):
         """Thread-safe service call that bridges ROS2 to asyncio.
 
-        The service client's call_async must be invoked from a thread-safe context
-        to avoid GIL violations and segfaults. We use a lock to ensure only one
-        service call happens at a time.
+        Queues the service call to be executed by the spin thread (the ONLY thread
+        where call_async is safe), then bridges the ROS2 future to asyncio.
         """
         loop = asyncio.get_running_loop()
         asyncio_future = loop.create_future()
-        ros_future = None
+        call_queued = threading.Event()
 
-        # Thread-safe service call with lock
-        lock = threading.Lock()
+        def result_callback(ros_future, error):
+            """Called by spin thread after call_async completes or errors."""
+            call_queued.set()
+            if error:
+                loop.call_soon_threadsafe(asyncio_future.set_exception, error)
+                return
 
-        def _make_call():
-            nonlocal ros_future
-            with lock:
-                ros_future = client.call_async(request)
+            def on_done(f):
+                """Called by rclpy executor when service completes."""
+                if asyncio_future.done():
+                    return  # Already timed out or cancelled
+                try:
+                    result = f.result()
+                    loop.call_soon_threadsafe(asyncio_future.set_result, result)
+                except Exception as exc:
+                    loop.call_soon_threadsafe(asyncio_future.set_exception, exc)
 
-                def on_done(f):
-                    """Called by rclpy executor when service completes."""
-                    if asyncio_future.done():
-                        return  # Already timed out or cancelled
-                    try:
-                        result = f.result()
-                        loop.call_soon_threadsafe(asyncio_future.set_result, result)
-                    except Exception as exc:
-                        loop.call_soon_threadsafe(asyncio_future.set_exception, exc)
+            ros_future.add_done_callback(on_done)
 
-                ros_future.add_done_callback(on_done)
+        # Queue the service call for the spin thread to execute
+        self._service_call_queue.put((client, request, result_callback))
 
-        # Run the call on the executor to avoid threading issues
-        await loop.run_in_executor(None, _make_call)
+        # Wait for the spin thread to pick up and execute the call
+        await asyncio.get_event_loop().run_in_executor(None, call_queued.wait, 1.0)
+
+        if not call_queued.is_set():
+            raise RuntimeError("Service call was not picked up by spin thread")
 
         try:
             return await asyncio.wait_for(asyncio_future, timeout=timeout)
