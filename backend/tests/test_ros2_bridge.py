@@ -373,7 +373,11 @@ async def test_call_service_async_success(mock_rclpy):
     asyncio.create_task(trigger_callback())  # noqa: RUF006
 
     mock_request = MagicMock()
-    result = await bridge._call_service_async(mock_client, mock_request, timeout=1.0)
+
+    def request_factory():
+        return mock_request
+
+    result = await bridge._call_service_async(mock_client, request_factory, timeout=1.0)
     assert result is mock_response
     mock_client.call_async.assert_called_once_with(mock_request)
     await bridge.close()
@@ -394,8 +398,11 @@ async def test_call_service_async_timeout(mock_rclpy):
     # Never call set_result — future never completes
     mock_request = MagicMock()
 
+    def request_factory():
+        return mock_request
+
     with pytest.raises(TimeoutError, match=r"Service call timed out after 0\.1s"):
-        await bridge._call_service_async(mock_client, mock_request, timeout=0.1)
+        await bridge._call_service_async(mock_client, request_factory, timeout=0.1)
 
     await bridge.close()
 
@@ -422,8 +429,11 @@ async def test_call_service_async_exception(mock_rclpy):
 
     mock_request = MagicMock()
 
+    def request_factory():
+        return mock_request
+
     with pytest.raises(RuntimeError, match="Service failed"):
-        await bridge._call_service_async(mock_client, mock_request, timeout=1.0)
+        await bridge._call_service_async(mock_client, request_factory, timeout=1.0)
 
     await bridge.close()
 
@@ -442,9 +452,12 @@ async def test_call_service_async_late_callback_after_timeout(mock_rclpy):
 
     mock_request = MagicMock()
 
+    def request_factory():
+        return mock_request
+
     # Future times out first
     with pytest.raises(TimeoutError):
-        await bridge._call_service_async(mock_client, mock_request, timeout=0.1)
+        await bridge._call_service_async(mock_client, request_factory, timeout=0.1)
 
     # Then callback fires late — should not crash (already-done guard)
     mock_response = MagicMock()
