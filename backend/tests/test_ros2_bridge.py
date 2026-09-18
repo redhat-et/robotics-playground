@@ -363,7 +363,7 @@ async def test_call_service_async_success(mock_rclpy):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.success = True
+    mock_response.result.result = 0
 
     # Schedule the callback to fire after executor runs
     async def trigger_callback():
@@ -483,7 +483,7 @@ async def test_sim_control_play_success(mock_rclpy):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.success = True
+    mock_response.result.result = 0
 
     # Trigger callback shortly after call
     async def trigger_success():
@@ -514,7 +514,7 @@ async def test_sim_control_pause_success(mock_rclpy):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.success = True
+    mock_response.result.result = 0
 
     async def trigger_success():
         await asyncio.sleep(0.01)
@@ -543,7 +543,7 @@ async def test_sim_control_stop_success(mock_rclpy):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.success = True
+    mock_response.result.result = 0
 
     async def trigger_success():
         await asyncio.sleep(0.01)
@@ -572,7 +572,7 @@ async def test_sim_control_set_state_failure(mock_rclpy):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.success = False
+    mock_response.result.result = 1
 
     async def trigger_failure():
         await asyncio.sleep(0.01)
@@ -619,7 +619,7 @@ async def test_sim_control_step_success(mock_rclpy):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.success = True
+    mock_response.result.result = 0
 
     async def trigger_success():
         await asyncio.sleep(0.01)
@@ -648,7 +648,7 @@ async def test_sim_control_step_failure(mock_rclpy):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.success = False
+    mock_response.result.result = 1
 
     async def trigger_failure():
         await asyncio.sleep(0.01)
@@ -678,7 +678,7 @@ async def test_sim_control_reset_success(mock_rclpy):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.success = True
+    mock_response.result.result = 0
 
     async def trigger_success():
         await asyncio.sleep(0.01)
@@ -708,7 +708,7 @@ async def test_sim_control_reset_preserves_step_on_failure(mock_rclpy):
     mock_client.call_async.return_value = fake_future
 
     mock_response = MagicMock()
-    mock_response.success = False
+    mock_response.result.result = 1
 
     async def trigger_failure():
         await asyncio.sleep(0.01)

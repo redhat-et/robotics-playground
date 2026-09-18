@@ -471,9 +471,10 @@ class ROS2Bridge:
                     response = await self._call_service_async(
                         self._set_simulation_state_client, make_request, timeout=5.0
                     )
-                    if not response.success:
-                        logger.warning("SetSimulationState(%s) returned failure", action)
-                        raise RuntimeError(f"SetSimulationState({action}) failed")
+                    if response.result.result != 0:
+                        err = response.result.error_message
+                        logger.warning("SetSimulationState(%s) failed: %s", action, err)
+                        raise RuntimeError(f"SetSimulationState({action}) failed: {err}")
                     # Only update state after confirmed success
                     self._sim_paused = action in ("pause", "stop")
                     logger.debug("SetSimulationState(%s) completed successfully", action)
@@ -497,9 +498,10 @@ class ROS2Bridge:
                     response = await self._call_service_async(
                         self._step_simulation_client, make_request, timeout=5.0
                     )
-                    if not response.success:
-                        logger.warning("StepSimulation returned failure")
-                        raise RuntimeError("StepSimulation failed")
+                    if response.result.result != 0:
+                        err = response.result.error_message
+                        logger.warning("StepSimulation failed: %s", err)
+                        raise RuntimeError(f"StepSimulation failed: {err}")
                     logger.debug("StepSimulation(%d) completed successfully", num_steps)
                 except TimeoutError:
                     logger.warning("StepSimulation timed out")
@@ -518,9 +520,10 @@ class ROS2Bridge:
                     response = await self._call_service_async(
                         self._reset_simulation_client, make_request, timeout=5.0
                     )
-                    if not response.success:
-                        logger.warning("ResetSimulation returned failure")
-                        raise RuntimeError("ResetSimulation failed")
+                    if response.result.result != 0:
+                        err = response.result.error_message
+                        logger.warning("ResetSimulation failed: %s", err)
+                        raise RuntimeError(f"ResetSimulation failed: {err}")
                     # Only reset step counter after confirmed success
                     self._step = 0
                     logger.info("ResetSimulation completed successfully")
