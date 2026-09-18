@@ -16,7 +16,8 @@ RUN python3 -m venv /venv && \
 FROM docker.io/ros:jazzy
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-jazzy-simulation-interfaces && \
+    ros-jazzy-simulation-interfaces \
+    ros-jazzy-rmw-cyclonedds-cpp && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install-pkgs /usr/lib/python3/dist-packages

@@ -61,6 +61,8 @@ spec:
               value: /etc/robotics-playground/config.yaml
             - name: ROS_LOCALHOST_ONLY
               value: "1"
+            - name: RMW_IMPLEMENTATION
+              value: rmw_cyclonedds_cpp
           volumeMounts:
             - name: config
               mountPath: /etc/robotics-playground
