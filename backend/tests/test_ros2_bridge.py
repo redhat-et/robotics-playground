@@ -347,86 +347,104 @@ async def test_ros2_bridge_watchdog_cancels_on_close(mock_rclpy):
     assert bridge._watchdog_task is None
 
 
-# ===== Priority 1: _await_ros2_service Tests =====
+# ===== Priority 1: _call_service_async Tests =====
 
 
 @pytest.mark.anyio
-async def test_await_ros2_service_success(mock_rclpy):
+async def test_call_service_async_success(mock_rclpy):
     from robotics_playground.bridges.ros2_bridge import ROS2Bridge
     from robotics_playground.config import ROS2Config
 
     bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
     await bridge.start()
 
+    mock_client = MagicMock()
     fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
     mock_response = MagicMock()
     mock_response.success = True
 
-    # Schedule the callback to fire after a brief delay
+    # Schedule the callback to fire after executor runs
     async def trigger_callback():
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.05)
         fake_future.set_result(mock_response)
 
     asyncio.create_task(trigger_callback())  # noqa: RUF006
 
-    result = await bridge._await_ros2_service(fake_future, timeout=1.0)
+    mock_request = MagicMock()
+    result = await bridge._call_service_async(mock_client, mock_request, timeout=1.0)
     assert result is mock_response
+    mock_client.call_async.assert_called_once_with(mock_request)
     await bridge.close()
 
 
 @pytest.mark.anyio
-async def test_await_ros2_service_timeout(mock_rclpy):
+async def test_call_service_async_timeout(mock_rclpy):
     from robotics_playground.bridges.ros2_bridge import ROS2Bridge
     from robotics_playground.config import ROS2Config
 
     bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
     await bridge.start()
 
+    mock_client = MagicMock()
     fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
     # Never call set_result — future never completes
+    mock_request = MagicMock()
 
     with pytest.raises(TimeoutError, match=r"Service call timed out after 0\.1s"):
-        await bridge._await_ros2_service(fake_future, timeout=0.1)
+        await bridge._call_service_async(mock_client, mock_request, timeout=0.1)
 
     await bridge.close()
 
 
 @pytest.mark.anyio
-async def test_await_ros2_service_exception(mock_rclpy):
+async def test_call_service_async_exception(mock_rclpy):
     from robotics_playground.bridges.ros2_bridge import ROS2Bridge
     from robotics_playground.config import ROS2Config
 
     bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
     await bridge.start()
 
+    mock_client = MagicMock()
     fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
     test_exception = RuntimeError("Service failed")
 
     async def trigger_exception():
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.05)
         fake_future.set_exception(test_exception)
 
     asyncio.create_task(trigger_exception())  # noqa: RUF006
 
+    mock_request = MagicMock()
+
     with pytest.raises(RuntimeError, match="Service failed"):
-        await bridge._await_ros2_service(fake_future, timeout=1.0)
+        await bridge._call_service_async(mock_client, mock_request, timeout=1.0)
 
     await bridge.close()
 
 
 @pytest.mark.anyio
-async def test_await_ros2_service_late_callback_after_timeout(mock_rclpy):
+async def test_call_service_async_late_callback_after_timeout(mock_rclpy):
     from robotics_playground.bridges.ros2_bridge import ROS2Bridge
     from robotics_playground.config import ROS2Config
 
     bridge = ROS2Bridge(ROS2Config(cameras={"wrist": "/cam/wrist"}))
     await bridge.start()
 
+    mock_client = MagicMock()
     fake_future = FakeRos2Future()
+    mock_client.call_async.return_value = fake_future
+
+    mock_request = MagicMock()
 
     # Future times out first
     with pytest.raises(TimeoutError):
-        await bridge._await_ros2_service(fake_future, timeout=0.1)
+        await bridge._call_service_async(mock_client, mock_request, timeout=0.1)
 
     # Then callback fires late — should not crash (already-done guard)
     mock_response = MagicMock()
