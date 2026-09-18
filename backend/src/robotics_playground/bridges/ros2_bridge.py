@@ -191,7 +191,6 @@ class ROS2Bridge:
         from simulation_interfaces.srv import GetSimulationState
 
         try:
-            request = GetSimulationState.Request()
 
             def on_response(f):
                 try:
@@ -215,9 +214,12 @@ class ROS2Bridge:
                     return
                 ros_future.add_done_callback(on_response)
 
+            def make_request():
+                return GetSimulationState.Request()
+
             # Queue the service call for the spin thread
             self._service_call_queue.put(
-                (self._get_simulation_state_client, request, result_callback)
+                (self._get_simulation_state_client, make_request, result_callback)
             )
         except Exception as exc:
             logger.debug("GetSimulationState call failed: %s", exc)
@@ -274,8 +276,10 @@ class ROS2Bridge:
             try:
                 while True:
                     call_request = self._service_call_queue.get_nowait()
-                    client, request, result_callback = call_request
+                    client, request_factory, result_callback = call_request
                     try:
+                        # Create Request in THIS thread - ROS2 messages are NOT thread-safe!
+                        request = request_factory()
                         # THIS is the only thread where call_async is safe!
                         ros_future = client.call_async(request)
                         result_callback(ros_future, None)
@@ -387,11 +391,16 @@ class ROS2Bridge:
             msg.data = [float(v) for v in action["joint_positions"]]
             self._float_array_publisher.publish(msg)
 
-    async def _call_service_async(self, client, request, timeout: float = 5.0):
+    async def _call_service_async(self, client, request_factory, timeout: float = 5.0):
         """Thread-safe service call that bridges ROS2 to asyncio.
 
         Queues the service call to be executed by the spin thread (the ONLY thread
         where call_async is safe), then bridges the ROS2 future to asyncio.
+
+        Args:
+            client: ROS2 service client
+            request_factory: Callable that creates Request() in spin thread
+            timeout: Service call timeout in seconds
         """
         loop = asyncio.get_running_loop()
         asyncio_future = loop.create_future()
@@ -417,7 +426,7 @@ class ROS2Bridge:
             ros_future.add_done_callback(on_done)
 
         # Queue the service call for the spin thread to execute
-        self._service_call_queue.put((client, request, result_callback))
+        self._service_call_queue.put((client, request_factory, result_callback))
 
         # Wait for the spin thread to pick up and execute the call
         await asyncio.get_event_loop().run_in_executor(None, call_queued.wait, 1.0)
@@ -443,11 +452,16 @@ class ROS2Bridge:
         if action in ("play", "pause", "stop"):
             state_map = {"stop": 0, "play": 1, "pause": 2}
             if self._set_simulation_state_client is not None:
-                request = SetSimulationState.Request()
-                request.state = state_map[action]
+                target_state = state_map[action]
+
+                def make_request():
+                    req = SetSimulationState.Request()
+                    req.state = target_state
+                    return req
+
                 try:
                     response = await self._call_service_async(
-                        self._set_simulation_state_client, request, timeout=5.0
+                        self._set_simulation_state_client, make_request, timeout=5.0
                     )
                     if not response.success:
                         logger.warning("SetSimulationState(%s) returned failure", action)
@@ -464,11 +478,16 @@ class ROS2Bridge:
 
         elif action == "step":
             if self._step_simulation_client is not None:
-                request = StepSimulation.Request()
-                request.steps = self._config.physics_decimation
+                num_steps = self._config.physics_decimation
+
+                def make_request():
+                    req = StepSimulation.Request()
+                    req.steps = num_steps
+                    return req
+
                 try:
                     response = await self._call_service_async(
-                        self._step_simulation_client, request, timeout=5.0
+                        self._step_simulation_client, make_request, timeout=5.0
                     )
                     if not response.success:
                         logger.warning("StepSimulation returned failure")
@@ -483,10 +502,13 @@ class ROS2Bridge:
 
         elif action == "reset":
             if self._reset_simulation_client is not None:
-                request = ResetSimulation.Request()
+
+                def make_request():
+                    return ResetSimulation.Request()
+
                 try:
                     response = await self._call_service_async(
-                        self._reset_simulation_client, request, timeout=5.0
+                        self._reset_simulation_client, make_request, timeout=5.0
                     )
                     if not response.success:
                         logger.warning("ResetSimulation returned failure")
