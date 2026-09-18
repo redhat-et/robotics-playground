@@ -99,7 +99,7 @@ spec:
               export ISAAC_SIM_PATH=/isaac-sim
               export ROS_DISTRO=jazzy
               export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}"
-              export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
+              export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
 
               export PYTHONPATH="/git/repo:${ISAAC_SIM_PATH}/exts/isaacsim.ros2.bridge/jazzy/rclpy${PYTHONPATH:+:${PYTHONPATH}}"
               export LD_LIBRARY_PATH="${ISAAC_SIM_PATH}/exts/isaacsim.ros2.bridge/jazzy/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
@@ -132,7 +132,7 @@ spec:
             - name: ROS_DOMAIN_ID
               value: "0"
             - name: RMW_IMPLEMENTATION
-              value: rmw_fastrtps_cpp
+              value: rmw_cyclonedds_cpp
             - name: SIMULATOR_MODULE
               value: ros2_manager_based_env.custom_env_3_3.run_playground
 
