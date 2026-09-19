@@ -340,6 +340,8 @@ class ROS2Bridge:
             joint_velocities=list(self._latest_joint_velocities),
         )
         self._step += 1
+        if self._step % 100 == 0:
+            logger.info("Observation step %d, listeners=%d", self._step, len(self._obs_listeners))
         for cb in list(self._obs_listeners):
             cb(obs)
         self._loop.call_soon_threadsafe(self._try_put, obs)
@@ -479,7 +481,7 @@ class ROS2Bridge:
                     self._sim_paused = action in ("pause", "stop")
                     if was_paused and not self._sim_paused:
                         self._last_obs_time = time.monotonic()
-                    logger.debug("SetSimulationState(%s) completed successfully", action)
+                    logger.info("SetSimulationState(%s) completed successfully", action)
                 except TimeoutError:
                     logger.warning("SetSimulationState(%s) timed out", action)
                     raise
