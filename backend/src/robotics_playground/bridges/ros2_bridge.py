@@ -475,8 +475,10 @@ class ROS2Bridge:
                         err = response.result.error_message
                         logger.warning("SetSimulationState(%s) failed: %s", action, err)
                         raise RuntimeError(f"SetSimulationState({action}) failed: {err}")
-                    # Only update state after confirmed success
+                    was_paused = self._sim_paused
                     self._sim_paused = action in ("pause", "stop")
+                    if was_paused and not self._sim_paused:
+                        self._last_obs_time = time.monotonic()
                     logger.debug("SetSimulationState(%s) completed successfully", action)
                 except TimeoutError:
                     logger.warning("SetSimulationState(%s) timed out", action)
