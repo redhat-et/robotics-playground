@@ -524,8 +524,9 @@ class ROS2Bridge:
                         err = response.result.error_message
                         logger.warning("ResetSimulation failed: %s", err)
                         raise RuntimeError(f"ResetSimulation failed: {err}")
-                    # Only reset step counter after confirmed success
+                    # Reset transitions simulator to STOPPED
                     self._step = 0
+                    self._sim_paused = True
                     logger.info("ResetSimulation completed successfully")
                 except TimeoutError:
                     logger.warning("ResetSimulation timed out")
