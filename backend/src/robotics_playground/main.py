@@ -264,7 +264,6 @@ async def websocket_session(websocket: WebSocket, session_id: str):
                     if action == "reset":
                         obs_streamer = app.state.obs_streamer
                         obs_streamer.reset()
-                        session.clear_instruction()
 
             elif msg_type == "select_model":
                 model_id = msg.get("model_id", "")
